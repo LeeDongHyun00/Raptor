@@ -1,17 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { getWorkspace, isStaticDemo } from "@/lib/client/api";
+import { getWorkspace } from "@/lib/client/api";
 import { useLoad } from "@/lib/client/useLoad";
 import { Badge, Loading, btn, fmtDate } from "../ui";
-import { AnalyzeButton } from "../AnalyzeButton";
 
 export function InsightsScreen() {
-  const { data, error, reload } = useLoad(getWorkspace);
+  const { data, error } = useLoad(getWorkspace);
   if (!data) return <Loading error={error} />;
-  const { ws, modes } = data;
-  const aiMode = modes.ai;
-  const realDocs = ws.materials.filter((m) => m.kind === "doc" && !m.demo).length;
+  const { ws } = data;
   const sample = ws.analysisMode !== "live";
 
   return (
@@ -23,15 +20,17 @@ export function InsightsScreen() {
             제안서와 매뉴얼을 읽고 일반적인 방식과 비교한 강점을 뽑았습니다. 각 항목 아래에 근거가 된 문서와 페이지가 표시됩니다.
           </p>
         </div>
-        <AnalyzeButton canAnalyze={aiMode === "live" && realDocs > 0} onDone={reload} />
+        <Link href="/materials" className={btn.ghost}>자료 화면에서 문서 분석하기</Link>
       </div>
 
-      {sample && (
+      {sample ? (
         <p className="rounded-xl border border-forest/20 bg-forest-soft px-4 py-3 text-sm leading-relaxed text-forest">
-          회사 문서 4종(CRM 매뉴얼, 모바일 관리자 매뉴얼, PC폰 매뉴얼, 11월 가이드라인)을 읽고 <strong>미리 분석해 둔 결과</strong>입니다.{" "}
-          {isStaticDemo
-            ? "새 문서를 올려 다시 분석하는 기능은 서버에 배포한 버전에서 쓸 수 있습니다."
-            : <>새 문서를 <Link href="/materials" className="font-bold underline">자료 페이지</Link>에 올리고{aiMode === "demo" ? " ANTHROPIC_API_KEY를 설정한 뒤" : ""} ‘다시 분석’을 누르면 그 문서 기준으로 바뀝니다.</>}
+          회사 문서 4종(CRM 매뉴얼, 모바일 관리자 매뉴얼, PC폰 매뉴얼, 11월 가이드라인)을 읽고 <strong>미리 분석해 둔 결과</strong>입니다.
+          새 문서를 <Link href="/materials" className="font-bold underline">자료 화면</Link>에 올리고 ‘문서 분석하기’를 누르면 그 문서 기준으로 바뀝니다.
+        </p>
+      ) : (
+        <p className="rounded-xl border border-forest/20 bg-forest-soft px-4 py-3 text-sm leading-relaxed text-forest">
+          올린 문서를 Claude가 읽고 분석한 결과입니다. 근거 페이지와 인용문은 원문과 대조해 확인하세요.
         </p>
       )}
 

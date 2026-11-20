@@ -37,28 +37,42 @@ export function emailFooter(ws: Workspace): string {
 const URGENCY = /오늘만|오늘 자정|마감|선착순|한정|곧 종료|단 \d+일/;
 
 /** Deterministic format checks for the channels beyond blog and card news. */
-export function checkChannels(ch: Channels): ChannelCheck[] {
+export function checkChannels(ch: Partial<Channels>): ChannelCheck[] {
   const over = (items: string[], max: number) => items.filter((t) => t.length > max);
   const lenDetail = (bad: string[], max: number, unit: string) =>
     bad.length ? `${max}자 초과 ${bad.length}개: ${bad.map((b) => `“${b}”(${b.length}자)`).join(", ")}` : `모두 ${max}자 이내 ${unit}`;
 
-  const subjBad = over(ch.email.subjects, LIMITS.emailSubject);
-  const copyBad = over(ch.kakao.map((k) => k.copy), LIMITS.kakaoCopy);
-  const subBad = over(ch.kakao.map((k) => k.sub), LIMITS.kakaoSub);
-  const urgent = ch.kakao.filter((k) => URGENCY.test(`${k.copy} ${k.sub}`));
-  const seconds = ch.shorts.scenes.reduce((a, s) => a + s.seconds, 0);
-  const headBad = over(ch.searchAds.ads.map((a) => a.headline), LIMITS.adHeadline);
-  const descBad = over(ch.searchAds.ads.map((a) => a.description), LIMITS.adDescription);
-
-  return [
-    { channel: "email", label: "이메일 제목 길이", pass: subjBad.length === 0, detail: lenDetail(subjBad, LIMITS.emailSubject, "· ‘(광고)’는 자동 표기") },
-    { channel: "email", label: "이메일 행동 유도는 하나만", pass: !!ch.email.ctaLabel.trim() && !/https?:\/\//.test(ch.email.paragraphs.join(" ")), detail: "버튼 1개, 본문에 다른 링크 없음 · 수신거부 안내는 자동 삽입" },
-    { channel: "kakao", label: "배너 한 줄 문구 길이", pass: copyBad.length + subBad.length === 0, detail: lenDetail([...copyBad, ...subBad], LIMITS.kakaoCopy, "· 소재 " + ch.kakao.length + "개") },
-    { channel: "kakao", label: "배너에 마감·한정 표현 없음", pass: urgent.length === 0, detail: urgent.length ? `사실 확인이 필요한 긴급성 표현: ${urgent.map((u) => `“${u.copy}”`).join(", ")}` : "거짓 긴급성 위험이 있는 표현을 쓰지 않았습니다" },
-    { channel: "shorts", label: "쇼츠 길이 15~30초", pass: seconds >= LIMITS.shortsMin && seconds <= LIMITS.shortsMax, detail: `총 ${seconds}초 · 장면 ${ch.shorts.scenes.length}개` },
-    { channel: "shorts", label: "모든 장면에 자막", pass: ch.shorts.scenes.every((sc) => sc.overlay.trim()), detail: "소리를 끄고 봐도 이해되도록 화면 자막을 넣습니다" },
-    { channel: "searchAds", label: "검색광고 제목·설명 길이", pass: headBad.length + descBad.length === 0, detail: headBad.length + descBad.length ? `제목 ${LIMITS.adHeadline}자·설명 ${LIMITS.adDescription}자 초과: ${[...headBad, ...descBad].map((b) => `“${b}”(${b.length}자)`).join(", ")}` : `제목 ${LIMITS.adHeadline}자·설명 ${LIMITS.adDescription}자 이내 · 광고 ${ch.searchAds.ads.length}개` },
-  ];
+  const out: ChannelCheck[] = [];
+  const { email, kakao, shorts, searchAds } = ch;
+  if (email) {
+    const subjBad = over(email.subjects, LIMITS.emailSubject);
+    out.push(
+      { channel: "email", label: "이메일 제목 길이", pass: subjBad.length === 0, detail: lenDetail(subjBad, LIMITS.emailSubject, "· ‘(광고)’는 자동 표기") },
+      { channel: "email", label: "이메일 행동 유도는 하나만", pass: !!email.ctaLabel.trim() && !/https?:\/\//.test(email.paragraphs.join(" ")), detail: "버튼 1개, 본문에 다른 링크 없음 · 수신거부 안내는 자동 삽입" },
+    );
+  }
+  if (kakao) {
+    const copyBad = over(kakao.map((k) => k.copy), LIMITS.kakaoCopy);
+    const subBad = over(kakao.map((k) => k.sub), LIMITS.kakaoSub);
+    const urgent = kakao.filter((k) => URGENCY.test(`${k.copy} ${k.sub}`));
+    out.push(
+      { channel: "kakao", label: "배너 한 줄 문구 길이", pass: copyBad.length + subBad.length === 0, detail: lenDetail([...copyBad, ...subBad], LIMITS.kakaoCopy, "· 소재 " + kakao.length + "개") },
+      { channel: "kakao", label: "배너에 마감·한정 표현 없음", pass: urgent.length === 0, detail: urgent.length ? `사실 확인이 필요한 긴급성 표현: ${urgent.map((u) => `“${u.copy}”`).join(", ")}` : "거짓 긴급성 위험이 있는 표현을 쓰지 않았습니다" },
+    );
+  }
+  if (shorts) {
+    const seconds = shorts.scenes.reduce((a, sc) => a + sc.seconds, 0);
+    out.push(
+      { channel: "shorts", label: "쇼츠 길이 15~30초", pass: seconds >= LIMITS.shortsMin && seconds <= LIMITS.shortsMax, detail: `총 ${seconds}초 · 장면 ${shorts.scenes.length}개` },
+      { channel: "shorts", label: "모든 장면에 자막", pass: shorts.scenes.every((sc) => sc.overlay.trim()), detail: "소리를 끄고 봐도 이해되도록 화면 자막을 넣습니다" },
+    );
+  }
+  if (searchAds) {
+    const headBad = over(searchAds.ads.map((a) => a.headline), LIMITS.adHeadline);
+    const descBad = over(searchAds.ads.map((a) => a.description), LIMITS.adDescription);
+    out.push({ channel: "searchAds", label: "검색광고 제목·설명 길이", pass: headBad.length + descBad.length === 0, detail: headBad.length + descBad.length ? `제목 ${LIMITS.adHeadline}자·설명 ${LIMITS.adDescription}자 초과: ${[...headBad, ...descBad].map((b) => `“${b}”(${b.length}자)`).join(", ")}` : `제목 ${LIMITS.adHeadline}자·설명 ${LIMITS.adDescription}자 이내 · 광고 ${searchAds.ads.length}개` });
+  }
+  return out;
 }
 
 /** Failed channel rules grouped per channel, used to regenerate only those channels. */
@@ -102,7 +116,7 @@ const channelText: { [K in ChannelId]: (c: Channels[K]) => string } = {
  * Deterministic privacy gate for everything that will be published: no phone numbers,
  * emails or resident numbers, and no reuse of the internal call quotes behind the plan.
  */
-export function checkPrivacy(blog: Blog, cards: CardNews, channels: Channels | undefined, quotes: string[]): PrivacyCheck {
+export function checkPrivacy(blog: Blog | undefined, cards: CardNews | undefined, channels: Partial<Channels> | undefined, quotes: string[]): PrivacyCheck {
   const problems: string[] = [];
   const scan = (text: string, where: string): boolean => {
     const pii = findPII(text);
@@ -112,15 +126,17 @@ export function checkPrivacy(blog: Blog, cards: CardNews, channels: Channels | u
     return pii.length > 0 || !!quote;
   };
   const blogSections: number[] = [];
-  if (scan(blog.title, "블로그 제목")) blogSections.push(0);
-  blog.sections.forEach((s, i) => {
-    if (scan([s.heading, ...s.paragraphs, s.caption ?? ""].join("\n"), `블로그 섹션 ${i + 1}`) && !blogSections.includes(i)) blogSections.push(i);
-  });
-  scan([...cards.slides.flatMap((s) => [s.eyebrow, s.title, s.body]), cards.caption, ...cards.hashtags].join("\n"), "카드뉴스");
+  if (blog) {
+    if (scan(blog.title, "블로그 제목")) blogSections.push(0);
+    blog.sections.forEach((s, i) => {
+      if (scan([s.heading, ...s.paragraphs, s.caption ?? ""].join("\n"), `블로그 섹션 ${i + 1}`) && !blogSections.includes(i)) blogSections.push(i);
+    });
+  }
+  if (cards) scan([...cards.slides.flatMap((s) => [s.eyebrow, s.title, s.body]), cards.caption, ...cards.hashtags].join("\n"), "카드뉴스");
   const bad: ChannelId[] = [];
   if (channels) {
     for (const id of Object.keys(channelText) as ChannelId[]) {
-      if (scan((channelText[id] as (c: unknown) => string)(channels[id]), CHANNEL_LABEL[id])) bad.push(id);
+      if (channels[id] && scan((channelText[id] as (c: unknown) => string)(channels[id]), CHANNEL_LABEL[id])) bad.push(id);
     }
   }
   return {
@@ -131,12 +147,14 @@ export function checkPrivacy(blog: Blog, cards: CardNews, channels: Channels | u
   };
 }
 
+/** Reviews whatever this run produced; outputs switched off in the settings are simply absent. */
 export function buildReview(
-  guideline: Guideline, blog: Blog, cards: CardNews, missionChecks: MissionCheck[], channels?: Channels, vocQuotes: string[] = [],
+  guideline: Guideline, blog: Blog | undefined, cards: CardNews | undefined, missionChecks: MissionCheck[],
+  channels?: Partial<Channels>, vocQuotes: string[] = [],
 ): Review {
-  const keywordChecks = checkKeywords(guideline, blog);
-  const charCount = blog.sections.flatMap((s) => s.paragraphs).join("").replace(/\s/g, "").length;
-  const cardCountOk = cards.slides.length >= 6 && cards.slides.length <= 8;
+  const keywordChecks = blog ? checkKeywords(guideline, blog) : [];
+  const charCount = blog ? blog.sections.flatMap((s) => s.paragraphs).join("").replace(/\s/g, "").length : 0;
+  const cardCountOk = !cards || (cards.slides.length >= 6 && cards.slides.length <= 8);
   const channelChecks = channels ? checkChannels(channels) : undefined;
   const privacy = checkPrivacy(blog, cards, channels, vocQuotes);
   const flags = [
@@ -144,8 +162,8 @@ export function buildReview(
     ...(channelChecks ?? []).map((c) => c.pass),
     ...keywordChecks.map((k) => k.pass),
     ...missionChecks.map((m) => m.pass),
-    charCount >= guideline.minChars,
-    cardCountOk,
+    ...(blog ? [charCount >= guideline.minChars] : []),
+    ...(cards ? [cardCountOk] : []),
     true, // ad disclosure is always added at render/export time
   ];
   return {

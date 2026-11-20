@@ -30,28 +30,38 @@ await json("/api/runs", { method: "DELETE" });
 await json("/api/voc", { method: "DELETE" });
 await rm(out, { recursive: true, force: true });
 
-// Pass 1: trend-only plans — every card and banner.
-for (let topic = 0; ; topic++) {
-  const run = await finishedRun();
-  // Sample topics never repeat, so the first failed run means they are all rendered.
-  if (run.status === "failed") break;
-  if (run.aiMode !== "demo") throw new Error("Run the app without ANTHROPIC_API_KEY to render the sample cards.");
-  const dir = new URL(`${topic}/`, out);
-  await mkdir(dir, { recursive: true });
-  for (let n = 0; n < run.cards.slides.length; n++) await save(`/api/runs/${run.id}/cards/${n}`, new URL(`${n}.png`, dir));
-  for (let n = 0; n < run.channels.kakao.length; n++) await save(`/api/runs/${run.id}/banners/${n}`, new URL(`banner-${n}.png`, dir));
-  console.log(`topic ${topic}: ${run.cards.slides.length} cards, ${run.channels.kakao.length} banners — ${run.plan.topic}`);
+const put = (path, body) => json(path, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+// One full set per card design, since the static site cannot recolor PNGs.
+for (const design of ["forest", "navy", "warm"]) {
+  await json("/api/runs", { method: "DELETE" });
+  await json("/api/voc", { method: "DELETE" });
+  await put("/api/workspace", { settings: { design } });
+
+  // Pass 1: trend-only plans — every card and banner.
+  for (let topic = 0; ; topic++) {
+    const run = await finishedRun();
+    // Sample topics never repeat, so the first failed run means they are all rendered.
+    if (run.status === "failed") break;
+    if (run.aiMode !== "demo") throw new Error("Run the app without ANTHROPIC_API_KEY to render the sample cards.");
+    const dir = new URL(`${design}/${topic}/`, out);
+    await mkdir(dir, { recursive: true });
+    for (let n = 0; n < run.cards.slides.length; n++) await save(`/api/runs/${run.id}/cards/${n}`, new URL(`${n}.png`, dir));
+    for (let n = 0; n < run.channels.kakao.length; n++) await save(`/api/runs/${run.id}/banners/${n}`, new URL(`banner-${n}.png`, dir));
+    console.log(`${design} topic ${topic}: ${run.cards.slides.length} cards, ${run.channels.kakao.length} banners — ${run.plan.topic}`);
+  }
+
+  // Pass 2: plans that answer a customer question — only the cover differs.
+  await json("/api/runs", { method: "DELETE" });
+  await post("/api/voc", { sample: true });
+  for (let topic = 0; ; topic++) {
+    const run = await finishedRun();
+    if (run.status === "failed") break;
+    await save(`/api/runs/${run.id}/cards/0`, new URL(`${design}/${topic}/voc-0.png`, out));
+    console.log(`${design} topic ${topic}: question cover — ${run.plan.customerQuestion}`);
+  }
 }
 
-// Pass 2: plans that answer a customer question — only the cover differs.
-await json("/api/runs", { method: "DELETE" });
-await post("/api/voc", { sample: true });
-for (let topic = 0; ; topic++) {
-  const run = await finishedRun();
-  if (run.status === "failed") break;
-  await save(`/api/runs/${run.id}/cards/0`, new URL(`${topic}/voc-0.png`, out));
-  console.log(`topic ${topic}: question cover — ${run.plan.customerQuestion}`);
-}
-
+await put("/api/workspace", { settings: { design: "forest" } });
 await json("/api/runs", { method: "DELETE" });
 await json("/api/voc", { method: "DELETE" });

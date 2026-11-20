@@ -1,19 +1,20 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Differentiator, Guideline, Material, MaterialKind, VocBoard } from "@/lib/types";
-import { analyzeVoc, assetUrl, clearVoc, isStaticDemo, removeMaterial, saveGuideline, uploadMaterial } from "@/lib/client/api";
-import { Badge, Panel, btn } from "./ui";
+import { analyze, analyzeVoc, assetUrl, clearVoc, isStaticDemo, removeMaterial, saveGuideline, uploadMaterial } from "@/lib/client/api";
+import { loadStoredKey, storeKey } from "@/lib/client/apiKeyStore";
+import { Badge, Panel, btn, fmtDate } from "./ui";
 
 const KINDS: { kind: MaterialKind; title: string; hint: string; accept: string }[] = [
   { kind: "doc", title: "제품 문서", hint: "제안서·매뉴얼 (PDF, PPTX · 4MB 이하)", accept: ".pdf,.pptx" },
-  { kind: "screenshot", title: "실제 사용 화면 캡처", hint: "PNG, JPG, WEBP · 4MB 이하", accept: ".png,.jpg,.jpeg,.webp" },
+  { kind: "screenshot", title: "화면 캡처·현장 사진", hint: "PNG, JPG, WEBP · 4MB 이하", accept: ".png,.jpg,.jpeg,.webp" },
 ];
 
 const size = (n: number) => (n > 1048576 ? `${(n / 1048576).toFixed(1)}MB` : n > 0 ? `${Math.max(1, Math.round(n / 1024))}KB` : "");
 
-export function MaterialsManager({ materials, guideline, voc, differentiators, aiMode, onChange }: {
-  materials: Material[]; guideline: Guideline; voc?: VocBoard; differentiators: Differentiator[]; aiMode: "live" | "demo"; onChange: () => void;
+export function MaterialsManager({ materials, guideline, analysis, voc, differentiators, aiMode, onChange }: {
+  materials: Material[]; analysis: { at?: string; mode?: "live" | "demo" }; guideline: Guideline; voc?: VocBoard; differentiators: Differentiator[]; aiMode: "live" | "demo"; onChange: () => void;
 }) {
   const [busy, setBusy] = useState<MaterialKind | null>(null);
   const [error, setError] = useState("");
@@ -47,7 +48,7 @@ export function MaterialsManager({ materials, guideline, voc, differentiators, a
     <div className="space-y-6">
       {isStaticDemo && (
         <p className="rounded-xl border border-horn/40 bg-horn-soft px-4 py-3 text-sm leading-relaxed text-[#6d4708]">
-          지금 보시는 것은 서버 없이 동작하는 <strong>GitHub Pages 데모</strong>입니다. 파일 업로드는 서버 배포 버전에서만 되고, 가이드라인 수정은 이 브라우저에 저장되어 다음 생성의 검수에 바로 반영됩니다.
+          지금 보시는 것은 서버 없이 동작하는 <strong>GitHub Pages 데모</strong>입니다. 문서와 가이드라인은 이 브라우저에만 저장되고, 문서 분석은 직접 넣은 API 키로 브라우저에서 실행됩니다. 화면 캡처·사진 업로드는 서버 배포 버전에서만 됩니다.
         </p>
       )}
       {error && <p role="alert" className="rounded-xl border border-bad/20 bg-bad-soft px-4 py-3 text-sm text-bad">{error}</p>}
@@ -55,7 +56,7 @@ export function MaterialsManager({ materials, guideline, voc, differentiators, a
         {KINDS.map(({ kind, title, hint, accept }) => {
           const items = materials.filter((m) => m.kind === kind);
           return (
-            <Panel key={kind} title={title} action={<UploadButton accept={accept} multiple busy={busy === kind} onFiles={(f) => upload(kind, f)} />}>
+            <Panel key={kind} title={title} action={<UploadButton accept={accept} multiple busy={busy === kind} unavailable={isStaticDemo && kind === "screenshot"} onFiles={(f) => upload(kind, f)} />}>
               <p className="-mt-2 mb-4 text-xs text-mute">{hint}</p>
               {kind === "screenshot" ? (
                 <ul className="grid grid-cols-2 gap-3">
@@ -87,9 +88,7 @@ export function MaterialsManager({ materials, guideline, voc, differentiators, a
                 </ul>
               )}
               {items.length === 0 && <p className="rounded-xl bg-cream px-4 py-6 text-center text-sm text-mute">아직 올린 파일이 없습니다.</p>}
-              {kind === "doc" && items.some((m) => !m.demo) && (
-                <p className="mt-4 text-xs text-mute">문서를 바꿨다면 ‘차별점 분석’ 페이지에서 다시 분석을 실행하세요.</p>
-              )}
+              {kind === "doc" && <DocAnalysis docs={items} analysis={analysis} aiMode={aiMode} onChange={onChange} />}
             </Panel>
           );
         })}
@@ -105,14 +104,14 @@ export function MaterialsManager({ materials, guideline, voc, differentiators, a
   );
 }
 
-function UploadButton({ accept, multiple, busy, onFiles, label = "파일 올리기" }: {
-  accept: string; multiple?: boolean; busy: boolean; onFiles: (f: FileList | null) => void; label?: string;
+function UploadButton({ accept, multiple, busy, onFiles, unavailable, label = "파일 올리기" }: {
+  accept: string; multiple?: boolean; busy: boolean; onFiles: (f: FileList | null) => void; unavailable?: boolean; label?: string;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   return (
     <>
       <input ref={ref} type="file" accept={accept} multiple={multiple} hidden onChange={(e) => { onFiles(e.target.files); e.target.value = ""; }} />
-      <button className={btn.ghost} disabled={busy || isStaticDemo} title={isStaticDemo ? "서버 배포 버전에서 사용할 수 있습니다" : undefined} onClick={() => ref.current?.click()}>{busy ? "올리는 중…" : label}</button>
+      <button className={btn.ghost} disabled={busy || unavailable} title={unavailable ? "서버 배포 버전에서 사용할 수 있습니다" : undefined} onClick={() => ref.current?.click()}>{busy ? "올리는 중…" : label}</button>
     </>
   );
 }
@@ -152,44 +151,145 @@ function GuidelineEditor({ guideline, uploadButton, onSaved }: { guideline: Guid
 
   return (
     <Panel title="가이드라인" action={uploadButton}>
-      <p className="-mt-2 mb-5 text-xs leading-relaxed text-mute">
-        현재 기준: {guideline.source}. 티링크 가이드라인 양식(‘필수’ 키워드, ‘강조내용’, ‘추천 본문 구성’ 행)을 그대로 올리면 읽어 옵니다.
+      <p className="-mt-2 mb-4 text-xs leading-relaxed text-mute">
+        현재 기준: {guideline.source}. 엑셀 가이드라인을 올리면 필수 키워드, 미션, 본문 구성을 자동으로 읽어 옵니다. 여기 있는 기준이 자동 검수가 채점하는 기준입니다.
       </p>
-      <div className="grid gap-5 lg:grid-cols-2">
-        <label className="block">
-          <span className="text-sm font-bold">필수 키워드</span>
-          <span className="ml-2 text-xs text-mute">한 줄에 하나 · “키워드 | 최소 횟수” · 코드로 정확히 검사</span>
-          <textarea className={`${input} mt-2`} rows={5} value={keywords} onChange={(e) => { setKeywords(e.target.value); setState("idle"); }} />
-        </label>
-        <label className="block">
-          <span className="text-sm font-bold">미션</span>
-          <span className="ml-2 text-xs text-mute">한 줄에 하나 · AI가 충족 여부를 판정</span>
-          <textarea className={`${input} mt-2`} rows={12} value={missions} onChange={(e) => { setMissions(e.target.value); setState("idle"); }} />
-        </label>
-        <label className="block">
-          <span className="text-sm font-bold">글 구성 순서</span>
-          <span className="ml-2 text-xs text-mute">한 줄에 하나</span>
-          <textarea className={`${input} mt-2`} rows={4} value={structure} onChange={(e) => { setStructure(e.target.value); setState("idle"); }} />
-        </label>
-        <div>
-          <label className="block">
-            <span className="text-sm font-bold">최소 글자 수</span>
-            <span className="ml-2 text-xs text-mute">본문, 공백 제외 · 0이면 기준 없음</span>
-            <input className={`${input} mt-2 max-w-40 tabular-nums`} inputMode="numeric" value={minChars} onChange={(e) => { setMinChars(e.target.value.replace(/\D/g, "")); setState("idle"); }} />
-          </label>
-          <p className="mt-4 rounded-xl bg-cream p-3 text-xs leading-relaxed text-mute">
-            ‘광고’ 표기는 가이드라인과 관계없이 항상 자동으로 들어갑니다. 블로그는 본문 맨 위, 인스타그램은 첫 장 이미지와 본문 첫 줄·해시태그에 표시합니다.
-          </p>
+      <dl className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl bg-forest-soft p-4">
+          <dt className="text-xs font-bold text-forest">필수 키워드 {guideline.requiredKeywords.length}개 · 코드 검사</dt>
+          <dd className="mt-2 flex flex-wrap gap-1.5">
+            {guideline.requiredKeywords.map((k) => <Badge key={k.keyword} tone="solid">{k.keyword}{k.minCount > 1 ? ` ×${k.minCount}` : ""}</Badge>)}
+            {guideline.requiredKeywords.length === 0 && <span className="text-sm text-mute">없음</span>}
+          </dd>
         </div>
+        <div className="rounded-xl bg-cream p-4">
+          <dt className="text-xs font-bold text-mute">글 구성 {guideline.structure.length}단계</dt>
+          <dd className="mt-2 text-sm leading-relaxed">{guideline.structure.join(" → ") || "없음"}</dd>
+        </div>
+        <div className="rounded-xl bg-cream p-4">
+          <dt className="text-xs font-bold text-mute">분량</dt>
+          <dd className="mt-2 text-sm leading-relaxed">{guideline.minChars ? `본문 공백 제외 ${guideline.minChars.toLocaleString()}자 이상` : "기준 없음"}</dd>
+        </div>
+      </dl>
+      <div className="mt-3 rounded-xl bg-cream p-4">
+        <p className="text-xs font-bold text-mute">미션 {guideline.missions.length}개 · AI 검수</p>
+        <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm leading-relaxed">
+          {guideline.missions.map((m, i) => <li key={i}>{m}</li>)}
+        </ol>
       </div>
-      <div className="mt-5 flex items-center gap-3">
-        <button className={btn.primary} onClick={save} disabled={state === "saving"}>{state === "saving" ? "저장 중…" : "가이드라인 저장"}</button>
-        <span role="status" className="text-sm text-mute">
-          {state === "saved" && "저장했습니다. 다음 생성부터 적용됩니다."}
-          {state === "error" && <span className="text-bad">저장하지 못했습니다.</span>}
-        </span>
-      </div>
+      <details className="mt-4 rounded-xl border border-line" open={state === "saved" || state === "error" || undefined}>
+        <summary className="cursor-pointer px-4 py-3 text-sm font-bold">직접 수정</summary>
+        <div className="border-t border-line p-4">
+          <p className="mb-4 text-xs leading-relaxed text-mute">읽어 온 내용이 틀렸거나 이번 회차만 기준을 바꿀 때 씁니다. 저장하면 다음 생성의 검수부터 적용됩니다.</p>
+      <div className="grid gap-5 lg:grid-cols-2">
+            <label className="block">
+              <span className="text-sm font-bold">필수 키워드</span>
+              <span className="ml-2 text-xs text-mute">한 줄에 하나 · “키워드 | 최소 횟수” · 코드로 정확히 검사</span>
+              <textarea className={`${input} mt-2`} rows={5} value={keywords} onChange={(e) => { setKeywords(e.target.value); setState("idle"); }} />
+            </label>
+            <label className="block">
+              <span className="text-sm font-bold">미션</span>
+              <span className="ml-2 text-xs text-mute">한 줄에 하나 · AI가 충족 여부를 판정</span>
+              <textarea className={`${input} mt-2`} rows={12} value={missions} onChange={(e) => { setMissions(e.target.value); setState("idle"); }} />
+            </label>
+            <label className="block">
+              <span className="text-sm font-bold">글 구성 순서</span>
+              <span className="ml-2 text-xs text-mute">한 줄에 하나</span>
+              <textarea className={`${input} mt-2`} rows={4} value={structure} onChange={(e) => { setStructure(e.target.value); setState("idle"); }} />
+            </label>
+            <div>
+              <label className="block">
+                <span className="text-sm font-bold">최소 글자 수</span>
+                <span className="ml-2 text-xs text-mute">본문, 공백 제외 · 0이면 기준 없음</span>
+                <input className={`${input} mt-2 max-w-40 tabular-nums`} inputMode="numeric" value={minChars} onChange={(e) => { setMinChars(e.target.value.replace(/\D/g, "")); setState("idle"); }} />
+              </label>
+              <p className="mt-4 rounded-xl bg-cream p-3 text-xs leading-relaxed text-mute">
+                ‘광고’ 표기는 가이드라인과 관계없이 항상 자동으로 들어갑니다. 블로그는 본문 맨 위, 인스타그램은 첫 장 이미지와 본문 첫 줄·해시태그에 표시합니다.
+              </p>
+            </div>
+          </div>
+          <div className="mt-5 flex items-center gap-3">
+            <button className={btn.primary} onClick={save} disabled={state === "saving"}>{state === "saving" ? "저장 중…" : "가이드라인 저장"}</button>
+            <span role="status" className="text-sm text-mute">
+              {state === "saved" && "저장했습니다. 다음 생성부터 적용됩니다."}
+              {state === "error" && <span className="text-bad">저장하지 못했습니다.</span>}
+            </span>
+          </div>
+        </div>
+      </details>
     </Panel>
+  );
+}
+
+function DocAnalysis({ docs, analysis, aiMode, onChange }: {
+  docs: Material[]; analysis: { at?: string; mode?: "live" | "demo" }; aiMode: "live" | "demo"; onChange: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [remember, setRemember] = useState(false);
+  // localStorage is not available during prerender, so the saved key is read after mount.
+  useEffect(() => {
+    const saved = loadStoredKey();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (saved) { setApiKey(saved); setRemember(true); }
+  }, []);
+
+  const real = docs.filter((m) => !m.demo);
+  const analyzed = analysis.mode === "live" && !!analysis.at;
+  // New material since the last analysis is what makes the button available.
+  const stale = real.length > 0 && (!analyzed || real.some((m) => m.uploadedAt > analysis.at!));
+  const needsKey = aiMode === "demo";
+  const key = apiKey.trim();
+
+  async function run() {
+    setBusy(true);
+    setError("");
+    if (needsKey) storeKey(remember && key ? key : null);
+    try {
+      await analyze(!needsKey, key || undefined);
+      onChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "분석에 실패했습니다.");
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div className="mt-5 border-t border-line pt-4">
+      {needsKey && stale && (
+        <div className="mb-3 rounded-xl bg-cream p-3">
+          <label className="block">
+            <span className="text-xs font-bold">Anthropic API 키</span>
+            <span className="ml-2 text-xs text-mute">서버에 키가 없어 직접 입력이 필요합니다</span>
+            <input
+              type="password" autoComplete="off" spellCheck={false} placeholder="sk-ant-…" value={apiKey} disabled={busy}
+              onChange={(e) => setApiKey(e.target.value)} className={`${input} mt-2 font-mono`}
+            />
+          </label>
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-mute">
+            <label className="flex items-center gap-1.5">
+              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="accent-[#1f4d3a]" />
+              이 브라우저에 기억
+            </label>
+            {apiKey && <button type="button" className="font-semibold hover:text-bad" onClick={() => { setApiKey(""); setRemember(false); storeKey(null); }}>키 지우기</button>}
+            <span>키는 이 브라우저에서 Anthropic으로만 전송되고, 문서도 함께 전송됩니다.</span>
+          </div>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-3">
+        <button className={btn.primary} disabled={busy || !stale || (needsKey && !key)} onClick={run}>
+          {busy ? "문서를 읽는 중… (1~2분)" : "문서 분석하기"}
+        </button>
+        <p role="status" className="min-w-0 flex-1 text-xs leading-relaxed text-mute">
+          {busy ? "차별점과 근거 페이지를 찾고 있습니다."
+            : stale ? "새로 올린 문서가 있습니다. 분석하면 차별점 카드가 이 문서 기준으로 바뀝니다. 가이드라인은 바뀌지 않습니다."
+            : real.length > 0 ? `${fmtDate(analysis.at!, true)}에 분석했습니다. 새 문서를 올리면 다시 분석할 수 있습니다.`
+            : "기본 탑재 문서는 이미 분석되어 있습니다. 새 문서를 올리면 분석 버튼이 켜집니다."}
+        </p>
+      </div>
+      {error && <p role="alert" className="mt-2 text-xs text-bad">{error}</p>}
+    </div>
   );
 }
 

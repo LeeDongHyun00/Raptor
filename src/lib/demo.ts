@@ -94,7 +94,7 @@ interface DemoTopic {
   adKeyword: string;
 }
 
-const NUMERIC_BANNER = { copy: "통화 3종, 한 화면에서 관리", sub: "휴대폰·인터넷전화·PC폰 통합 녹취", cta: "살펴보기", hook: "숫자" as const, target: "솔루션 도입 검토자" };
+const NUMERIC_BANNER = { copy: "통화 3종, 한 화면에서 관리", sub: "휴대폰·인터넷전화·PC폰 통합 녹취", cta: "살펴보기", hook: "숫자" as const, target: "중소기업 대표·도입 검토자" };
 
 const TOPICS: DemoTopic[] = [
   {
@@ -125,8 +125,8 @@ const TOPICS: DemoTopic[] = [
       ],
     },
     kakao: [
-      { copy: "아직도 통화 내용 손으로 적으세요?", sub: "통화가 끝나면 AI가 요약합니다", cta: "확인하기", hook: "손실 회피", target: "영업사원·상담 실무자" },
-      { copy: "우리 팀 통화 기록, 어디에 있나요?", sub: "휴대폰·인터넷전화 통합 녹취", cta: "알아보기", hook: "질문", target: "영업팀장·관리자" },
+      { copy: "아직도 통화 내용 손으로 적으세요?", sub: "통화가 끝나면 AI가 요약합니다", cta: "확인하기", hook: "손실 회피", target: "소규모 영업팀 실무자" },
+      { copy: "우리 팀 통화 기록, 어디에 있나요?", sub: "휴대폰·인터넷전화 통합 녹취", cta: "알아보기", hook: "질문", target: "중소기업 영업팀장" },
       NUMERIC_BANNER,
     ],
     shorts: { title: "영업 업무자동화, 통화 메모부터 없애기", hookLine: "업무자동화 하라는데, 뭐부터 하죠?", hookOverlay: "자동화, 어디서부터?", result: "기록은 시스템이, 나는 다음 고객에게." },
@@ -251,7 +251,7 @@ export function demoBlog(plan: Plan): Blog {
       // With a customer question the post opens by asking it and answering right away.
       sec(plan.customerQuestion ?? "흩어진 통화 기록, 기존 영업관리의 문제", [
         plan.customerQuestion ? `${plan.customerQuestion} ${t.vocAnswer}` : t.intro,
-        "티링크 비즈레코딩은 휴대폰 통화녹음과 인터넷전화 자동녹취를 하나로 묶어 영업사원 통화관리를 자동화하는 솔루션입니다. 콜센터 프로그램을 찾아보던 팀이라면, 녹취부터 통화요약과 리포트까지 한 번에 이어지는 구성을 눈여겨볼 만합니다.",
+        "티링크 비즈레코딩은 휴대폰 통화녹음과 인터넷전화 자동녹취를 하나로 묶어 영업사원 통화관리를 자동화하는 솔루션입니다. 콜센터 프로그램을 찾아보던 중소기업이나, 통화 기록을 따로 챙길 사람이 없는 소규모 영업팀이라면 녹취부터 통화요약과 리포트까지 한 번에 이어지는 구성을 눈여겨볼 만합니다.",
       ]),
       sec("휴대폰·인터넷전화·PC폰 통화를 동시에 녹음합니다", [
         `${t.leads.record} 외근 중에는 휴대폰, 사무실에서는 인터넷전화, 집에서는 PC폰. 티링크 비즈레코딩은 이 통화들을 모두 자동으로 녹음·녹취합니다. 통신사는 KT, SK, LG 모두 사용할 수 있습니다.`,
@@ -326,7 +326,7 @@ export function demoChannels(plan: Plan, ws: Workspace): Channels {
       paragraphs: [
         ...t.email.story,
         `티링크 ${name}은 휴대폰·인터넷전화·PC폰 통화를 자동으로 녹취하고, 통화가 끝나면 STT 문자변환과 AI 통화요약을 남깁니다. ${t.coreMessage}`,
-        `우리 팀 통화 환경에 맞는 도입 방법을 담당자가 안내해 드립니다. 전화 상담은 ${CONTACT.phone}입니다.`,
+        `직원이 많지 않은 팀도 쓰던 전화 그대로 시작할 수 있는지, 우리 팀 통화 환경에 맞는 도입 방법을 담당자가 안내해 드립니다. 전화 상담은 ${CONTACT.phone}입니다.`,
       ],
       ctaLabel: "도입 상담 신청하기",
     },
@@ -345,7 +345,7 @@ export function demoChannels(plan: Plan, ws: Workspace): Channels {
       pinnedComment: `통화 기록과 보고에 쓰는 시간을 줄이고 싶다면 → 프로필 링크에서 티링크 ${name} 도입 상담을 신청하세요. (${CONTACT.phone})`,
     },
     searchAds: {
-      keywords: ["콜센터 프로그램", "영업사원 통화관리", "휴대폰 통화녹음 프로그램", "인터넷전화 녹취", "통화요약 프로그램", t.adKeyword, ...(plan.customerQuestion ? t.voc.searches : [])],
+      keywords: ["콜센터 프로그램", "중소기업 콜센터 프로그램", "영업사원 통화관리", "휴대폰 통화녹음 프로그램", "인터넷전화 녹취", "통화요약 프로그램", t.adKeyword, ...(plan.customerQuestion ? t.voc.searches : [])],
       negativeKeywords: ["무료 다운로드", "개인용", "아이폰 통화녹음", "녹음기", "콜센터 채용"],
       ads: [
         { headline: `콜센터 프로그램 ${name}`, description: "휴대폰·인터넷전화 통화를 자동 녹취하고 AI가 통화요약까지. 도입 상담 신청." },

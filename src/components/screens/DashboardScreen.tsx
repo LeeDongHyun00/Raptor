@@ -6,6 +6,8 @@ import { useLoad } from "@/lib/client/useLoad";
 import { INTERVAL_DAYS, nextRunAt } from "@/lib/pipelineCore";
 import { Badge, Loading, Panel, StatusBadge, btn, fmtDate } from "../ui";
 import { ResetHistoryButton, RunNowButton } from "../RunControls";
+import { SettingsPanel } from "../SettingsPanel";
+import { resolveSettings } from "@/lib/settings";
 
 const FLOW = [
   { n: "1", title: "차별점 분석", body: "제안서·매뉴얼에서 강점을 뽑고 근거 페이지를 표시" },
@@ -74,6 +76,8 @@ export function DashboardScreen() {
         ))}
       </ol>
 
+      <SettingsPanel initial={resolveSettings(ws.settings)} aiMode={modes.ai} onSaved={reload} />
+
       <Panel title="승인 대기열">
         {pending.length === 0 ? (
           <p className="rounded-xl bg-cream px-4 py-8 text-center text-sm text-mute">
@@ -84,7 +88,7 @@ export function DashboardScreen() {
             {pending.map((r) => (
               <li key={r.id}>
                 <Link href={`/run?id=${r.id}`} className="flex gap-4 rounded-xl border border-line bg-cream/50 p-3 transition-colors hover:border-forest">
-                  {r.cards ? (
+                  {r.cards && r.status !== "running" ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={cardUrl(r, 0)} alt="" className="h-[150px] w-[120px] shrink-0 rounded-lg border border-line object-cover" />
                   ) : (

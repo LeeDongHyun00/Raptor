@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { Channels, Review, Run } from "@/lib/types";
+import type { Blog, Channels, Review, Run } from "@/lib/types";
+import type { EditSuggestion } from "@/lib/suggestRules";
+import { conceptOf, designOf, resolveSettings } from "@/lib/settings";
 import { blogBodyHtml } from "@/lib/blogHtml";
 import { CHANNEL_LABEL, LIMITS, blogPlainText, emailSubject } from "@/lib/review";
 import { emailDocumentHtml } from "@/lib/emailHtml";
 import { STEPS } from "@/lib/pipelineCore";
-import { bannerUrl, blogExportUrl, cardUrl, downloadHtml, assetUrl, decideRun, downloadBlogHtml, getRun } from "@/lib/client/api";
+import { bannerUrl, blogExportUrl, cardUrl, downloadHtml, saveBlog, suggestEdits, assetUrl, decideRun, downloadBlogHtml, getRun } from "@/lib/client/api";
 import { Badge, Panel, StatusBadge, btn, fmtDate } from "./ui";
 
 
@@ -23,7 +25,15 @@ interface Props {
 
 export function RunView({ initial, disclosure, adHashtag, emailFooter, differentiators }: Props) {
   const [run, setRun] = useState(initial);
-  const [tab, setTab] = useState<Tab>("blog");
+  const [picked, setTab] = useState<Tab | null>(null);
+  const ch = run.channels ?? {};
+  // Only what this run actually made gets a tab.
+  const tabs = ([
+    run.blog && ["blog", "블로그"], run.cards && ["cards", "인스타그램"], ch.email && ["email", "이메일"],
+    ch.kakao && ["kakao", "카카오톡 배너"], ch.shorts && ["shorts", "쇼츠·릴스"], ch.searchAds && ["search", "검색광고"],
+    ["plan", "기획 근거"],
+  ] as (false | undefined | [Tab, string])[]).filter((t): t is [Tab, string] => !!t);
+  const tab = picked && tabs.some(([k]) => k === picked) ? picked : tabs[0][0];
   const [deciding, setDeciding] = useState(false);
   const [actionError, setActionError] = useState("");
 
@@ -48,7 +58,7 @@ export function RunView({ initial, disclosure, adHashtag, emailFooter, different
     setDeciding(false);
   }
 
-  const ready = !!(run.blog && run.cards && run.review) && run.status !== "running" && run.status !== "failed";
+  const ready = !!run.review && run.status !== "running" && run.status !== "failed";
 
   return (
     <div className="space-y-6">
@@ -108,11 +118,7 @@ export function RunView({ initial, disclosure, adHashtag, emailFooter, different
           <div className="min-w-0 space-y-4">
             <div className="-mx-1 overflow-x-auto px-1 pb-1">
               <div role="tablist" className="flex w-max gap-1 rounded-full border border-line bg-paper p-1 text-sm font-bold">
-                {([
-                  ["blog", "블로그"], ["cards", "인스타그램"],
-                  ...(run.channels ? ([["email", "이메일"], ["kakao", "카카오톡 배너"], ["shorts", "쇼츠·릴스"], ["search", "검색광고"]] as const) : []),
-                  ["plan", "기획 근거"],
-                ] as const).map(([k, label]) => (
+                {tabs.map(([k, label]) => (
                   <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
                     className={`whitespace-nowrap rounded-full px-4 py-2 transition-colors ${tab === k ? "bg-forest text-cream" : "text-mute hover:text-ink"}`}>
                     {label}
@@ -120,16 +126,16 @@ export function RunView({ initial, disclosure, adHashtag, emailFooter, different
                 ))}
               </div>
             </div>
-            {tab === "blog" && <BlogTab run={run} disclosure={disclosure} />}
-            {tab === "cards" && <CardsTab run={run} disclosure={disclosure} adHashtag={adHashtag} />}
-            {run.channels && tab === "email" && <EmailTab run={run} channels={run.channels} footer={emailFooter} />}
-            {run.channels && tab === "kakao" && <KakaoTab run={run} channels={run.channels} />}
-            {run.channels && tab === "shorts" && <ShortsTab channels={run.channels} />}
-            {run.channels && tab === "search" && <SearchTab channels={run.channels} />}
+            {run.blog && tab === "blog" && <BlogTab run={run} disclosure={disclosure} onChange={setRun} />}
+            {run.cards && tab === "cards" && <CardsTab run={run} disclosure={disclosure} adHashtag={adHashtag} />}
+            {ch.email && tab === "email" && <EmailTab run={run} channels={ch as Channels} footer={emailFooter} />}
+            {ch.kakao && tab === "kakao" && <KakaoTab run={run} channels={ch as Channels} />}
+            {ch.shorts && tab === "shorts" && <ShortsTab channels={ch as Channels} />}
+            {ch.searchAds && tab === "search" && <SearchTab channels={ch as Channels} />}
             {tab === "plan" && <PlanTab run={run} differentiators={differentiators} />}
           </div>
           <aside className="space-y-4">
-            <Checklist review={run.review!} />
+            <Checklist review={run.review!} hasBlog={!!run.blog} hasCards={!!run.cards} edited={!!run.editedAt} />
             {run.revisions.length > 0 && run.firstReview && (
               <Panel title="자동 보완 내역">
                 <p className="text-sm leading-relaxed text-mute">
@@ -213,20 +219,21 @@ function Check({ pass, label, detail }: { pass: boolean; label: string; detail?:
   );
 }
 
-function Checklist({ review }: { review: Review }) {
+function Checklist({ review, hasBlog, hasCards, edited }: { review: Review; hasBlog: boolean; hasCards: boolean; edited: boolean }) {
   const all = review.passed === review.total;
   return (
     <Panel title="가이드라인 충족도" action={<Badge tone={all ? "good" : "bad"}>{review.passed} / {review.total}</Badge>}>
       <div className="h-2 overflow-hidden rounded-full bg-cream">
         <div className={`h-full rounded-full ${all ? "bg-forest" : "bg-horn"}`} style={{ width: `${(review.passed / review.total) * 100}%` }} />
       </div>
-      <p className="mb-1 mt-4 text-xs font-bold text-mute">블로그·인스타그램 · 코드 검사</p>
+      {edited && <p className="mt-3 rounded-lg bg-horn-soft px-3 py-2 text-xs leading-relaxed text-[#8a5a0b]">직접 수정한 뒤 다시 검수한 결과입니다.</p>}
+      <p className="mb-1 mt-4 text-xs font-bold text-mute">공통·블로그·인스타그램 · 코드 검사</p>
       <ul className="divide-y divide-line/60">
         {review.keywordChecks.map((k) => (
           <Check key={k.keyword} pass={k.pass} label={k.keyword} detail={`${k.count}회 사용 · 기준 ${k.minCount}회 이상`} />
         ))}
-        <Check pass={review.charCount >= review.minChars} label="본문 분량" detail={`공백 제외 ${review.charCount.toLocaleString()}자 · ${review.minChars ? `기준 ${review.minChars.toLocaleString()}자 이상` : "가이드라인에 기준 없음"}`} />
-        <Check pass={review.cardCountOk} label="카드뉴스 6~8장" />
+        {hasBlog && <Check pass={review.charCount >= review.minChars} label="본문 분량" detail={`공백 제외 ${review.charCount.toLocaleString()}자 · ${review.minChars ? `기준 ${review.minChars.toLocaleString()}자 이상` : "가이드라인에 기준 없음"}`} />}
+        {hasCards && <Check pass={review.cardCountOk} label="카드뉴스 6~8장" />}
         <Check pass={review.adDisclosure} label="‘광고’ 표기" detail="공정위 추천·보증 지침에 따라 자동 삽입" />
         {review.privacy && <Check pass={review.privacy.pass} label="개인정보 노출 없음" detail={review.privacy.detail} />}
       </ul>
@@ -281,40 +288,166 @@ function CopyButton({ label, getData, className = btn.ghost }: {
   );
 }
 
-function BlogTab({ run, disclosure }: { run: Run; disclosure: string }) {
+function BlogTab({ run, disclosure, onChange }: { run: Run; disclosure: string; onChange: (run: Run) => void }) {
   const blog = run.blog!;
   const revised = new Set(run.revisions.flatMap((r) => r.sectionIndexes));
+  const [draft, setDraft] = useState<Blog | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  // The passage the reviewer selected by dragging, and the advice asked for it.
+  const [sel, setSel] = useState<{ sec: number; par: number; text: string } | null>(null);
+  const [advice, setAdvice] = useState<{ loading: boolean; items: EditSuggestion[]; mode?: "live" | "demo" }>({ loading: false, items: [] });
+
+  async function save(next: Blog) {
+    setSaving(true);
+    setError("");
+    try {
+      onChange(await saveBlog(run, next));
+      setDraft(null);
+      setSel(null);
+      setAdvice({ loading: false, items: [] });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "저장하지 못했습니다.");
+    }
+    setSaving(false);
+  }
+
+  function readSelection() {
+    const s = window.getSelection();
+    const text = s?.toString().trim() ?? "";
+    const el = (n: Node | null | undefined) => (n instanceof Element ? n : n?.parentElement)?.closest<HTMLElement>("[data-par]");
+    const a = el(s?.anchorNode), f = el(s?.focusNode);
+    // Only a selection inside one paragraph can be replaced unambiguously.
+    if (!a || a !== f || text.length < 2) return;
+    setSel({ sec: Number(a.dataset.sec), par: Number(a.dataset.par), text });
+    setAdvice({ loading: false, items: [] });
+    setError("");
+  }
+
+  async function ask() {
+    if (!sel) return;
+    setAdvice({ loading: true, items: [] });
+    setError("");
+    try {
+      const res = await suggestEdits(run, sel.sec, sel.par, sel.text);
+      setAdvice({ loading: false, items: res.suggestions, mode: res.mode });
+    } catch (e) {
+      setAdvice({ loading: false, items: [] });
+      setError(e instanceof Error ? e.message : "추천을 받지 못했습니다.");
+    }
+  }
+
+  function apply(rewrite: string) {
+    if (!sel) return;
+    const para = blog.sections[sel.sec]?.paragraphs[sel.par] ?? "";
+    if (!para.includes(sel.text)) return setError("선택한 문장을 본문에서 찾지 못했습니다. 다시 선택해 주세요.");
+    const sections = blog.sections.map((s, i) => (i !== sel.sec ? s : { ...s, paragraphs: s.paragraphs.map((p, j) => (j === sel.par ? p.replace(sel.text, rewrite) : p)) }));
+    save({ ...blog, sections });
+  }
+
+  const editing = !!draft;
+  const field = "w-full rounded-lg border border-line bg-white px-3 py-2 leading-relaxed focus:border-forest focus:outline-none";
+  const setSection = (i: number, patch: (s: Blog["sections"][number]) => Blog["sections"][number]) =>
+    setDraft((d) => (d ? { ...d, sections: d.sections.map((s, k) => (k === i ? patch(s) : s)) } : d));
+
   return (
     <Panel
       title="네이버 블로그 글"
       action={
         <div className="flex flex-wrap gap-2">
-          <CopyButton
-            label="글 복사"
-            getData={() => ({
-              text: `${disclosure}\n\n${blogPlainText(blog)}\n\n${blog.tags.map((t) => `#${t}`).join(" ")}`,
-              // No images in the clipboard: the blog editor drops pasted image data, so screenshots are uploaded by hand.
-              html: blogBodyHtml(disclosure, blog, () => null),
-            })}
-          />
-          {blogExportUrl(run) ? (
-            <a className={btn.ghost} href={blogExportUrl(run)!}>HTML 내보내기</a>
+          {editing ? (
+            <>
+              <button className={btn.ghost} disabled={saving} onClick={() => setDraft(null)}>취소</button>
+              <button className={btn.primary} disabled={saving} onClick={() => draft && save(draft)}>{saving ? "저장하고 검수하는 중…" : "저장하고 다시 검수"}</button>
+            </>
           ) : (
-            <button className={btn.ghost} onClick={() => downloadBlogHtml(run, blog, disclosure)}>HTML 내보내기</button>
+            <>
+              <button className={btn.ghost} onClick={() => { setDraft(blog); setSel(null); }}>직접 수정</button>
+              <CopyButton
+                label="글 복사"
+                getData={() => ({
+                  text: `${disclosure}\n\n${blogPlainText(blog)}\n\n${blog.tags.map((t) => `#${t}`).join(" ")}`,
+                  // No images in the clipboard: the blog editor drops pasted image data, so screenshots are uploaded by hand.
+                  html: blogBodyHtml(disclosure, blog, () => null),
+                })}
+              />
+              {blogExportUrl(run) ? (
+                <a className={btn.ghost} href={blogExportUrl(run)!}>HTML 내보내기</a>
+              ) : (
+                <button className={btn.ghost} onClick={() => downloadBlogHtml(run, blog, disclosure)}>HTML 내보내기</button>
+              )}
+            </>
           )}
         </div>
       }
     >
-      <article className="mx-auto max-w-2xl">
+      {!editing && (
+        <div className="sticky top-16 z-10 mx-auto mb-4 max-w-2xl rounded-xl border border-horn/40 bg-horn-soft p-3 text-sm">
+          {sel ? (
+            <>
+              <p className="text-xs font-bold text-[#8a5a0b]">선택한 부분</p>
+              <p className="mt-1 line-clamp-3 leading-relaxed">“{sel.text}”</p>
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                <button className={btn.primary} disabled={advice.loading || saving} onClick={ask}>{advice.loading ? "추천을 만드는 중…" : "AI 수정 방향 추천"}</button>
+                <button className={btn.text} onClick={() => { setSel(null); setAdvice({ loading: false, items: [] }); }}>선택 해제</button>
+              </div>
+              {advice.items.length > 0 && (
+                <ol className="mt-3 space-y-2">
+                  {advice.items.map((it, i) => (
+                    <li key={i} className="rounded-lg bg-paper p-3">
+                      <p className="text-sm font-semibold leading-relaxed">{i + 1}. {it.direction}</p>
+                      {it.rewrite && (
+                        <div className="mt-2 flex flex-wrap items-start justify-between gap-2">
+                          <p className="min-w-0 flex-1 rounded-md bg-forest-soft px-3 py-2 text-sm leading-relaxed">{it.rewrite}</p>
+                          <button className={btn.ghost} disabled={saving} onClick={() => apply(it.rewrite!)}>이렇게 바꾸기</button>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                  {advice.mode === "demo" && <li className="text-xs leading-relaxed text-[#8a5a0b]">API 키가 없는 데모에서는 문장 특성에 따른 일반 조언만 보여 줍니다. 키가 있으면 선택한 문장을 방향별로 다시 써 줍니다.</li>}
+                </ol>
+              )}
+            </>
+          ) : (
+            <p className="leading-relaxed text-[#6d4708]">고치고 싶은 문장을 <strong>드래그해서 선택</strong>하면 AI가 수정 방향을 추천합니다. 문장 전체를 손보려면 ‘직접 수정’을 누르세요.</p>
+          )}
+          {error && <p role="alert" className="mt-2 text-xs text-bad">{error}</p>}
+        </div>
+      )}
+      {editing && error && <p role="alert" className="mx-auto mb-3 max-w-2xl text-xs text-bad">{error}</p>}
+
+      <article className="mx-auto max-w-2xl" onMouseUp={editing ? undefined : readSelection} onTouchEnd={editing ? undefined : readSelection} onKeyUp={editing ? undefined : readSelection}>
         <p className="rounded-lg border border-line bg-cream px-3 py-2 text-xs text-mute">{disclosure}</p>
-        <h2 className="mt-5 text-2xl font-extrabold leading-snug tracking-tight">{blog.title}</h2>
-        {blog.sections.map((s, i) => (
+        {editing ? (
+          <label className="mt-5 block">
+            <span className="text-xs font-bold text-mute">제목</span>
+            <input className={`${field} mt-1 text-lg font-extrabold`} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+          </label>
+        ) : (
+          <h2 className="mt-5 text-2xl font-extrabold leading-snug tracking-tight">{blog.title}</h2>
+        )}
+        {(draft ?? blog).sections.map((s, i) => (
           <section key={i} className="mt-8">
-            <h3 className="flex flex-wrap items-center gap-2 text-lg font-extrabold leading-snug">
-              {s.heading}
-              {revised.has(i) && <Badge tone="warn">자동 보완됨</Badge>}
-            </h3>
-            {s.paragraphs.map((p, j) => <p key={j} className="mt-3 text-[15px] leading-[1.9] text-[#26332c]">{p}</p>)}
+            {editing ? (
+              <>
+                <label className="block">
+                  <span className="text-xs font-bold text-mute">소제목 {i + 1}</span>
+                  <input className={`${field} mt-1 font-extrabold`} value={s.heading} onChange={(e) => setSection(i, (x) => ({ ...x, heading: e.target.value }))} />
+                </label>
+                {s.paragraphs.map((p, j) => (
+                  <textarea key={j} aria-label={`소제목 ${i + 1}의 문단 ${j + 1}`} className={`${field} mt-2 text-[15px]`} rows={Math.max(3, Math.ceil(p.length / 42))} value={p}
+                    onChange={(e) => setSection(i, (x) => ({ ...x, paragraphs: x.paragraphs.map((q, k) => (k === j ? e.target.value : q)) }))} />
+                ))}
+              </>
+            ) : (
+              <>
+                <h3 className="flex flex-wrap items-center gap-2 text-lg font-extrabold leading-snug">
+                  {s.heading}
+                  {revised.has(i) && <Badge tone="warn">자동 보완됨</Badge>}
+                </h3>
+                {s.paragraphs.map((p, j) => <p key={j} data-sec={i} data-par={j} className="mt-3 text-[15px] leading-[1.9] text-[#26332c]">{p}</p>)}
+              </>
+            )}
             {s.screenshotId && (
               <figure className="mt-5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -327,7 +460,7 @@ function BlogTab({ run, disclosure }: { run: Run; disclosure: string }) {
         <p className="mt-8 text-sm font-semibold text-forest">{blog.tags.map((t) => `#${t}`).join(" ")}</p>
       </article>
       <p className="mt-6 border-t border-line pt-4 text-xs leading-relaxed text-mute">
-        ‘글 복사’는 서식과 함께 본문을 복사합니다. 화면 캡처는 붙여넣기에 포함되지 않으니 블로그 편집기에서 해당 위치에 직접 올려 주세요. ‘HTML 내보내기’ 파일에는 이미지가 함께 들어 있습니다.
+        수정한 내용은 저장할 때 가이드라인 검수를 다시 거칩니다. ‘글 복사’는 서식과 함께 본문을 복사하며 화면 캡처는 포함되지 않으니 블로그 편집기에서 직접 올려 주세요. ‘HTML 내보내기’ 파일에는 이미지가 함께 들어 있습니다.
       </p>
     </Panel>
   );
@@ -425,7 +558,13 @@ function PlanTab({ run, differentiators }: { run: Run; differentiators: { id: st
           </p>
         </Panel>
       )}
-      <Panel title="이 주제를 고른 이유">
+      <Panel title="이 주제를 고른 이유" action={
+        <span className="flex flex-wrap gap-1.5">
+          <Badge>타깃 · {resolveSettings(run.settings).audience}</Badge>
+          <Badge>컨셉 · {conceptOf(run.settings?.concept).label}</Badge>
+          <Badge>디자인 · {designOf(run.settings?.design).label}</Badge>
+        </span>
+      }>
         <p className="text-sm leading-relaxed">{plan.reason}</p>
         {plan.coreMessage && (
           <p className="mt-4 rounded-xl border border-horn/40 bg-horn-soft p-4 text-sm leading-relaxed">

@@ -11,6 +11,8 @@ import { maskPII } from "./voc";
 import { LIMITS } from "./review";
 import { seedDifferentiators } from "./seed";
 import { NO_INVENTED, TONE } from "./prompts";
+import { heuristicSuggestions, requestDifferentiators, requestSuggestions, type AnalysisDoc, type EditSuggestion } from "./aiCore";
+import { conceptOf, resolveSettings } from "./settings";
 
 export const aiMode: "live" | "demo" =
   process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN ? "live" : "demo";
@@ -56,59 +58,25 @@ async function review<T>(schema: z.ZodType<T>, system: string, text: string): Pr
 
 /* ---------- 1. Differentiator analysis ---------- */
 
-const DiffSchema = z.object({
-  differentiators: z.array(z.object({
-    title: z.string(),
-    plain: z.string(),
-    conventional: z.string(),
-    ours: z.string(),
-    evidence: z.array(z.object({ doc: z.string(), page: z.number(), quote: z.string() })),
-  })),
-});
-
-async function materialBlocks(docs: Material[]): Promise<Content> {
-  const blocks: Content = [];
-  for (const d of docs) {
-    if (d.mime === "application/pdf") {
-      const asset = await getAsset(d.id);
-      if (!asset) continue;
-      blocks.push({ type: "text", text: `다음 문서의 파일명: ${d.name}` });
-      blocks.push({ type: "document", title: d.name, source: { type: "base64", media_type: "application/pdf", data: asset.data } });
-    } else if (d.text) {
-      blocks.push({ type: "text", text: `<document name="${d.name}">\n${d.text}\n</document>` });
-    }
-  }
-  return blocks;
-}
-
 export async function analyzeDifferentiators(ws: Workspace): Promise<Differentiator[]> {
   const docs = ws.materials.filter((m) => m.kind === "doc" && !m.demo);
   if (aiMode === "demo" || docs.length === 0) return seedDifferentiators;
-  const blocks = await materialBlocks(docs);
-  if (blocks.length === 0) throw new Error("분석할 수 있는 문서 내용이 없습니다. PDF 또는 PPTX 자료를 올려 주세요.");
-  const out = await write(
-    DiffSchema,
-    `당신은 B2B 기술 솔루션 마케팅 분석가입니다. ${TONE}`,
-    [
-      ...blocks,
-      {
-        type: "text",
-        text: `위 자료는 ${ws.product.company}의 ‘${ws.product.name}’(${ws.product.summary}) 제안서와 매뉴얼입니다.
-이 제품이 일반적인 업무 방식이나 흔한 대안과 비교해 갖는 차별점을 4~6개 뽑아 주세요.
+  const input: AnalysisDoc[] = [];
+  for (const d of docs) {
+    if (d.mime === "application/pdf") {
+      const asset = await getAsset(d.id);
+      if (asset) input.push({ name: d.name, kind: "pdf", data: asset.data });
+    } else if (d.text) {
+      input.push({ name: d.name, kind: "text", text: d.text });
+    }
+  }
+  return requestDifferentiators(anthropic(), ws.product, input);
+}
 
-각 항목:
-- title: 차별점 이름(20자 이내)
-- plain: 고객이 바로 이해할 한 문장
-- conventional: 일반적인 방식에서는 어떻게 하는지
-- ours: 이 제품에서는 어떻게 달라지는지
-- evidence: 근거 1~3개. doc은 위에 표시된 파일명 그대로, page는 해당 내용이 있는 실제 페이지(슬라이드) 번호, quote는 그 페이지의 문구를 짧게 그대로 인용
-
-자료에서 근거를 찾을 수 없는 내용은 차별점으로 넣지 마세요.`,
-      },
-    ],
-    "high",
-  );
-  return out.differentiators.map((d, i) => ({ ...d, id: `d_${Date.now().toString(36)}_${i}` }));
+/** Directions for rewriting a passage the reviewer selected; rule-based without an API key. */
+export async function suggestEdits(args: Parameters<typeof requestSuggestions>[1]): Promise<EditSuggestion[]> {
+  if (aiMode === "demo") return heuristicSuggestions(args.selection);
+  return requestSuggestions(anthropic(), args);
 }
 
 /* ---------- 2. Screenshot understanding ---------- */
@@ -171,6 +139,8 @@ ${[...openVoc].sort((a, b) => b.count - a.count).map((v) => `- [${v.id}] ${v.que
       type: "text",
       text: `제품: ${ws.product.company} ‘${ws.product.name}’ — ${ws.product.summary}
 
+타깃 독자: ${resolveSettings(ws.settings).audience}
+${resolveSettings(ws.settings).productNotes ? `담당자가 직접 입력한 제품 정보: ${resolveSettings(ws.settings).productNotes}\n` : ""}
 제품 차별점:
 ${diffList(ws.differentiators)}
 
@@ -233,7 +203,10 @@ const briefing = (ws: Workspace, plan: Plan) => `제품: ${ws.product.company} �
 - 연결한 트렌드: ${plan.trendKeyword}
 - 관점: ${plan.angle}
 - 모든 채널이 공유하는 핵심 메시지: ${plan.coreMessage ?? plan.topic}
-${plan.customerQuestion ? `
+- 타깃 독자: ${resolveSettings(ws.settings).audience} (이 독자의 규모와 상황에 맞는 예시와 말투로 씁니다)
+- 컨셉: ${conceptOf(resolveSettings(ws.settings).concept).prompt}
+${resolveSettings(ws.settings).productNotes ? `- 담당자가 직접 입력한 제품 정보(문서에는 없지만 사실로 다룹니다): ${resolveSettings(ws.settings).productNotes}
+` : ""}${plan.customerQuestion ? `
 이번 콘텐츠가 답할 고객 질문: ${plan.customerQuestion}
 - 이 질문은 실제 상담 통화에서 나온 질문을 일반화한 것입니다. 질문에 직접 답하는 것이 콘텐츠의 목적입니다.
 - 고객 수, 통화 건수, 통화 인용, 고객사 이름은 쓰지 않습니다.

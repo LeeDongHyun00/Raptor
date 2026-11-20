@@ -1,5 +1,6 @@
 import type { Blog, BlogSection, CardNews, ChannelId, Channels, Guideline, VocItem, Material, MissionCheck, NewsItem, Plan, Run, TrendItem, Workspace } from "./types";
 import { CHANNEL_LABEL, buildReview, channelProblems, collectProblems } from "./review";
+import { OUTPUTS, resolveSettings } from "./settings";
 
 /**
  * Environment-independent pipeline: the server wires it to Claude, Naver and the
@@ -97,7 +98,7 @@ export async function runPipeline(runId: string, deps: PipelineDeps): Promise<vo
     // Internal quotes behind the plan must never surface in public copy.
     const quotes = vocItem?.quotes ?? [];
 
-    // 3. One plan -> blog post and card news together
+    // 3. One plan -> every selected channel together
     let shots = ws.materials.filter((m) => m.kind === "screenshot");
     const described = await deps.describeScreenshots(ws, shots);
     if (Object.keys(described).length) {
@@ -107,15 +108,26 @@ export async function runPipeline(runId: string, deps: PipelineDeps): Promise<vo
       fresh.materials = fresh.materials.map((m) => (described[m.id] ? { ...m, description: described[m.id] } : m));
       await deps.saveWorkspace(fresh);
     }
+    // Only the outputs switched on in the production settings are made and reviewed.
+    const settings = resolveSettings(ws.settings);
+    const on = settings.outputs;
+    const channelIds = (["email", "kakao", "shorts", "searchAds"] as const).filter((id) => on[id]);
     const [draft, cards, firstChannels] = await Promise.all([
-      deps.writeBlog(ws, plan, shots), deps.writeCards(ws, plan, shots), deps.writeChannels({ ws, plan }),
+      on.blog ? deps.writeBlog(ws, plan, shots) : undefined,
+      on.instagram ? deps.writeCards(ws, plan, shots) : undefined,
+      channelIds.length ? deps.writeChannels({ ws, plan, only: [...channelIds] }) : ({} as Partial<Channels>),
     ]);
     let blog = draft;
-    let channels = firstChannels as Channels;
-    await log(STEPS[2], `하나의 기획으로 6개 채널 소재를 만들었습니다: 블로그 글(섹션 ${blog.sections.length}개), 카드뉴스(${cards.slides.length}장), 이메일, 카카오톡 배너(${channels.kakao.length}개), 쇼츠 대본, 검색광고(${channels.searchAds.ads.length}개).`, (r) => { r.blog = blog; r.cards = cards; r.channels = channels; });
+    // Writers may return more than was asked for (the prepared demo copy does); keep the chosen ones.
+    let channels: Partial<Channels> = Object.fromEntries(channelIds.filter((id) => firstChannels[id]).map((id) => [id, firstChannels[id]]));
+    const made = OUTPUTS.filter((o) => on[o.id]).map((o) => o.label);
+    await log(STEPS[2], `하나의 기획으로 ${made.length}개 채널 소재를 만들었습니다: ${made.join(", ")}.`, (r) => {
+      r.blog = blog; r.cards = cards; r.channels = channels; r.settings = settings;
+    });
 
     // 4. Review: keywords in code, missions by AI
-    let review = buildReview(ws.guideline, blog, cards, await deps.reviewMissions(ws.guideline, blog), channels, quotes);
+    const missionsOf = async (b: Blog | undefined) => (b ? deps.reviewMissions(ws.guideline, b) : []);
+    let review = buildReview(ws.guideline, blog, cards, await missionsOf(blog), channels, quotes);
     const firstReview = review;
     await log(STEPS[3], `가이드라인 ${review.total}개 항목 중 ${review.passed}개를 충족했습니다.`, (r) => { r.review = review; r.firstReview = firstReview; });
 
@@ -124,7 +136,7 @@ export async function runPipeline(runId: string, deps: PipelineDeps): Promise<vo
     const failedChannels = Object.keys(notes) as ChannelId[];
     if (failedChannels.length) {
       const redo = await deps.writeChannels({ ws, plan, only: failedChannels, notes });
-      channels = { ...channels, ...redo };
+      channels = { ...channels, ...Object.fromEntries(failedChannels.filter((id) => redo[id]).map((id) => [id, redo[id]])) };
       const missions = review.missionChecks;
       review = buildReview(ws.guideline, blog, cards, missions, channels, quotes);
       await log(STEPS[4], `형식 규칙을 지키지 못한 ${failedChannels.map((c) => CHANNEL_LABEL[c]).join(", ")}만 다시 만들었습니다. 재검수 결과 ${review.passed}/${review.total}.`, (r) => {
@@ -132,19 +144,21 @@ export async function runPipeline(runId: string, deps: PipelineDeps): Promise<vo
         r.revisions.push({ round: 0, sectionIndexes: [], reasons: Object.values(notes).flat(), channels: failedChannels });
       });
     }
-    for (let round = 1; round <= MAX_FIX_ROUNDS && review.passed < review.total; round++) {
-      const { reasons, sectionIndexes, fixTitle } = collectProblems(review, blog);
+    for (let round = 1; blog && round <= MAX_FIX_ROUNDS && review.passed < review.total; round++) {
+      const current: Blog = blog;
+      const { reasons, sectionIndexes, fixTitle } = collectProblems(review, current);
       if (sectionIndexes.length === 0 && !fixTitle) break;
-      const fix = await deps.reviseBlog({ ws, plan, blog, shots, reasons, sectionIndexes, fixTitle });
+      const fix = await deps.reviseBlog({ ws, plan, blog: current, shots, reasons, sectionIndexes, fixTitle });
       if (fix.sections.length === 0 && !fix.title) break;
-      const sections = [...blog.sections];
+      const sections = [...current.sections];
       for (const f of fix.sections) sections[f.index] = f.section;
-      blog = { ...blog, title: fix.title ?? blog.title, sections };
-      review = buildReview(ws.guideline, blog, cards, await deps.reviewMissions(ws.guideline, blog), channels, quotes);
+      const next: Blog = { ...current, title: fix.title ?? current.title, sections };
+      blog = next;
+      review = buildReview(ws.guideline, next, cards, await missionsOf(next), channels, quotes);
       const applied = fix.sections.map((f) => f.index);
       const what = [fix.title ? "제목" : "", applied.length ? `섹션 ${applied.map((i) => i + 1).join(", ")}번` : ""].filter(Boolean).join("과 ");
       await log(STEPS[4], `미충족 ${reasons.length}건을 해결하도록 ${what}만 다시 썼습니다. 재검수 결과 ${review.passed}/${review.total}.`, (r) => {
-        r.blog = blog; r.review = review; r.revisions.push({ round, sectionIndexes: applied, reasons, title: !!fix.title });
+        r.blog = next; r.review = review; r.revisions.push({ round, sectionIndexes: applied, reasons, title: !!fix.title });
       });
     }
 

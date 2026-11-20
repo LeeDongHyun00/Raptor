@@ -38,6 +38,17 @@ export interface Differentiator {
   evidence: Evidence[];
 }
 
+/** Filters chosen before a run: what to make, in which tone and look, for whom. */
+export interface ProductionSettings {
+  outputs: Record<"blog" | "instagram" | "shorts" | "kakao" | "searchAds" | "email", boolean>;
+  concept: "info" | "empathy" | "compare";
+  design: "forest" | "navy" | "warm";
+  /** Target reader, e.g. small businesses and small sales teams. */
+  audience: string;
+  /** Facts the operator adds by hand because the documents do not state them. */
+  productNotes: string;
+}
+
 export type VocCategory = "도입 문의" | "기능 질문" | "도입 우려" | "불만·장애";
 
 export interface VocItem {
@@ -72,6 +83,7 @@ export interface Workspace {
   analysisMode?: "live" | "demo";
   /** Customer questions mined from call summaries; without it planning uses trends only. */
   voc?: VocBoard;
+  settings?: ProductionSettings;
 }
 
 export interface TrendItem {
@@ -241,7 +253,11 @@ export interface Run {
   vocMode?: "live" | "sample";
   blog?: Blog;
   cards?: CardNews;
-  channels?: Channels;
+  channels?: Partial<Channels>;
+  /** Settings in force when the run started; later changes must not restyle old results. */
+  settings?: ProductionSettings;
+  /** Set when a person edited the copy after generation. */
+  editedAt?: string;
   review?: Review;
   /** Review result of the first draft, kept to show what the auto-fix changed. */
   firstReview?: Review;

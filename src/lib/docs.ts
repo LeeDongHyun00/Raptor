@@ -14,8 +14,9 @@ const numbered = (s: string) =>
  * - the company sheet: rows labelled 필수 / 강조내용 / 추천 본문 구성 with numbered text in the next cell
  * - a simple "구분 | 내용 | (횟수)" table with 키워드 / 미션 / 구성 / 글자수 labels
  */
-export function parseGuidelineXlsx(buf: Buffer, source: string): Guideline {
-  const wb = XLSX.read(buf, { type: "buffer" });
+export function parseGuidelineXlsx(buf: Uint8Array, source: string): Guideline {
+  // "array" reads both Node Buffers and browser Uint8Arrays.
+  const wb = XLSX.read(buf, { type: "array" });
   const g: Guideline = { source, requiredKeywords: [], missions: [], structure: [], minChars: 0 };
   let titleRule = false;
   for (const name of wb.SheetNames) {

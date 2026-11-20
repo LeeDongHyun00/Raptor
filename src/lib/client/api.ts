@@ -1,9 +1,14 @@
-import type { Blog, Guideline, MaterialKind, PromoInput, PromoResult, Run, Workspace } from "../types";
+import type { Blog, Guideline, Material, MaterialKind, ProductionSettings, PromoInput, PromoResult, Run, Workspace } from "../types";
 import { demoPromo } from "../studioDemo";
 import { demoBlog, demoCards, demoChannels, demoPlan, demoReviewMissions, demoRevise, demoTopicIndex, sampleNews, sampleTrends, sampleVoc } from "../demo";
 import { seedShotFile, seedWorkspace } from "../seed";
-import { newRun, runPipeline } from "../pipelineCore";
+import { newId, newRun, runPipeline } from "../pipelineCore";
 import { blogDocumentHtml } from "../blogHtml";
+import { buildReview } from "../review";
+import { resolveSettings } from "../settings";
+import type { AnalysisDoc } from "../aiCore";
+import { heuristicSuggestions, type EditSuggestion } from "../suggestRules";
+import { loadStoredKey } from "./apiKeyStore";
 
 /**
  * Single data-access layer for the UI. With a server it talks to /api/*;
@@ -133,8 +138,36 @@ export async function clearRuns(): Promise<void> {
   await json("/api/runs", { method: "DELETE" });
 }
 
+const fileExt = (name: string) => name.toLowerCase().split(".").pop() ?? "";
+
 export async function uploadMaterial(kind: MaterialKind, file: File): Promise<void> {
-  if (isStaticDemo) throw new Error(STATIC_NOTICE);
+  if (isStaticDemo) {
+    // No server: documents stay in this browser (IndexedDB) and the guideline is parsed right here.
+    if (file.size > 4 * 1024 * 1024) throw new Error("파일은 4MB 이하만 올릴 수 있습니다.");
+    const ws = localWs();
+    const e = fileExt(file.name);
+    if (kind === "guideline") {
+      if (!["xlsx", "xls"].includes(e)) throw new Error("가이드라인은 엑셀(xlsx) 파일만 올릴 수 있습니다.");
+      const { parseGuidelineXlsx } = await import("../docs");
+      ws.guideline = parseGuidelineXlsx(new Uint8Array(await file.arrayBuffer()), file.name);
+      return write(WS_KEY, ws);
+    }
+    if (kind !== "doc") throw new Error(STATIC_NOTICE);
+    if (!["pdf", "pptx"].includes(e)) throw new Error("이 항목에는 pdf, pptx 파일만 올릴 수 있습니다.");
+    const material: Material = {
+      id: newId("doc"), kind, name: file.name, mime: e === "pdf" ? "application/pdf" : "application/octet-stream",
+      size: file.size, uploadedAt: new Date().toISOString(),
+    };
+    if (e === "pptx") {
+      const { extractPptxText } = await import("../pptx");
+      material.text = await extractPptxText(await file.arrayBuffer());
+    } else {
+      const { putFile } = await import("./fileStore");
+      await putFile(material.id, file);
+    }
+    ws.materials = [...ws.materials.filter((m) => !(m.demo && m.kind === "doc")), material];
+    return write(WS_KEY, ws);
+  }
   const form = new FormData();
   form.set("kind", kind);
   form.set("file", file);
@@ -146,7 +179,13 @@ export async function uploadMaterial(kind: MaterialKind, file: File): Promise<vo
 }
 
 export async function removeMaterial(id: string): Promise<void> {
-  if (isStaticDemo) throw new Error(STATIC_NOTICE);
+  if (isStaticDemo) {
+    const ws = localWs();
+    ws.materials = ws.materials.filter((m) => m.id !== id);
+    write(WS_KEY, ws);
+    const { deleteFile } = await import("./fileStore");
+    return void (await deleteFile(id).catch(() => undefined));
+  }
   await json(`/api/materials/${id}`, { method: "DELETE" });
 }
 
@@ -188,9 +227,98 @@ export async function clearVoc(): Promise<void> {
   await json("/api/voc", { method: "DELETE" });
 }
 
-export async function analyze(): Promise<void> {
-  if (isStaticDemo) throw new Error(STATIC_NOTICE);
-  await json("/api/analyze", { method: "POST" });
+async function blobToBase64(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let bin = "";
+  // Chunked so large files do not overflow the argument limit of fromCharCode.
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+const browserClient = async (apiKey: string) => {
+  const { default: Anthropic } = await import("@anthropic-ai/sdk");
+  // The viewer's own key, sent only to api.anthropic.com from their browser.
+  return new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+};
+
+const apiErrorMessage = (e: unknown) => {
+  const status = (e as { status?: number })?.status;
+  if (status === 401) return "API 키가 올바르지 않습니다. 키를 다시 확인해 주세요.";
+  if (status === 429) return "요청 한도를 넘었습니다. 잠시 후 다시 시도해 주세요.";
+  // No HTTP status means the request never reached the API.
+  if (status === undefined && /connection|network|fetch/i.test(String((e as Error)?.message))) return "Anthropic에 연결하지 못했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.";
+  return e instanceof Error ? e.message : "요청에 실패했습니다.";
+};
+
+/**
+ * Reads the uploaded product documents and rebuilds the differentiator cards.
+ * With a server key the server does it; otherwise the browser calls the API with `apiKey`.
+ */
+export async function analyze(serverHasKey: boolean, apiKey?: string): Promise<void> {
+  if (!isStaticDemo && serverHasKey) return void (await json("/api/analyze", { method: "POST" }));
+  if (!apiKey) throw new Error("문서를 분석하려면 Anthropic API 키가 필요합니다.");
+  const ws = isStaticDemo ? localWs() : (await getWorkspace()).ws;
+  const docs: AnalysisDoc[] = [];
+  for (const m of ws.materials.filter((x) => x.kind === "doc" && !x.demo)) {
+    if (m.text) { docs.push({ name: m.name, kind: "text", text: m.text }); continue; }
+    const blob = isStaticDemo
+      ? await (await import("./fileStore")).getFile(m.id)
+      : await fetch(`${BASE}/api/assets/${m.id}`).then((r) => (r.ok ? r.blob() : undefined));
+    if (blob) docs.push({ name: m.name, kind: "pdf", data: await blobToBase64(blob) });
+  }
+  if (docs.length === 0) throw new Error("분석할 문서가 없습니다. PDF 또는 PPTX 자료를 먼저 올려 주세요.");
+  const { requestDifferentiators } = await import("../aiCore");
+  let differentiators;
+  try {
+    differentiators = await requestDifferentiators(await browserClient(apiKey), ws.product, docs);
+  } catch (e) {
+    throw new Error(apiErrorMessage(e));
+  }
+  if (isStaticDemo) {
+    const fresh = localWs();
+    fresh.differentiators = differentiators;
+    fresh.analyzedAt = new Date().toISOString();
+    fresh.analysisMode = "live";
+    return write(WS_KEY, fresh);
+  }
+  await json("/api/workspace", jsonBody("PUT", { differentiators }));
+}
+
+export async function saveSettings(settings: ProductionSettings): Promise<void> {
+  if (isStaticDemo) {
+    const ws = localWs();
+    ws.settings = resolveSettings(settings);
+    return write(WS_KEY, ws);
+  }
+  await json("/api/workspace", jsonBody("PUT", { settings }));
+}
+
+/** Saves a hand-edited blog and returns the run with a fresh review. */
+export async function saveBlog(run: Run, blog: Blog): Promise<Run> {
+  if (!isStaticDemo) return (await json<{ run: Run }>(`/api/runs/${run.id}`, jsonBody("PATCH", { blog }))).run;
+  const ws = localWs();
+  const review = buildReview(ws.guideline, blog, run.cards, demoReviewMissions(ws.guideline, blog), run.channels, run.vocItem?.quotes ?? []);
+  return localUpdateRun(run.id, (r) => { r.blog = blog; r.review = review; r.editedAt = new Date().toISOString(); });
+}
+
+/** Rewrite directions for a selected passage: AI when a key is available, generic advice otherwise. */
+export async function suggestEdits(run: Run, sectionIndex: number, paragraphIndex: number, selection: string): Promise<{ suggestions: EditSuggestion[]; mode: "live" | "demo" }> {
+  if (!isStaticDemo) return json("/api/suggest", jsonBody("POST", { runId: run.id, sectionIndex, paragraphIndex, selection }));
+  const key = loadStoredKey();
+  const section = run.blog?.sections[sectionIndex];
+  if (!key || !section) return { suggestions: heuristicSuggestions(selection), mode: "demo" };
+  const ws = localWs();
+  const { requestSuggestions } = await import("../aiCore");
+  try {
+    const suggestions = await requestSuggestions(await browserClient(key), {
+      selection, paragraph: section.paragraphs[paragraphIndex] ?? section.heading, heading: section.heading,
+      topic: run.plan?.topic ?? run.blog!.title, audience: resolveSettings(run.settings ?? ws.settings).audience,
+      keywords: ws.guideline.requiredKeywords.map((k) => k.keyword),
+    });
+    return { suggestions, mode: "live" };
+  } catch (e) {
+    throw new Error(apiErrorMessage(e));
+  }
 }
 
 /**
@@ -220,6 +348,7 @@ export async function generatePromo(input: PromoInput, docs: File[], photos: Fil
   return (body as { result: PromoResult }).result;
 }
 
+
 /* ---------- URLs for images and downloads ---------- */
 
 export function assetUrl(id: string): string {
@@ -231,12 +360,12 @@ export function assetUrl(id: string): string {
 export function cardUrl(run: Run, index: number, download = false): string {
   // The static site cannot render PNGs on demand; sample topics ship pre-rendered.
   // The cover differs when the plan answers a customer question, so that variant is rendered separately.
-  if (isStaticDemo) return `${BASE}/demo-cards/${demoTopicIndex(run.plan?.topic ?? "")}/${index === 0 && run.plan?.vocId ? "voc-0" : index}.png`;
+  if (isStaticDemo) return `${BASE}/demo-cards/${resolveSettings(run.settings).design}/${demoTopicIndex(run.plan?.topic ?? "")}/${index === 0 && run.plan?.vocId ? "voc-0" : index}.png`;
   return `${BASE}/api/runs/${run.id}/cards/${index}${download ? "?download" : ""}`;
 }
 
 export function bannerUrl(run: Run, index: number, download = false): string {
-  if (isStaticDemo) return `${BASE}/demo-cards/${demoTopicIndex(run.plan?.topic ?? "")}/banner-${index}.png`;
+  if (isStaticDemo) return `${BASE}/demo-cards/${resolveSettings(run.settings).design}/${demoTopicIndex(run.plan?.topic ?? "")}/banner-${index}.png`;
   return `${BASE}/api/runs/${run.id}/banners/${index}${download ? "?download" : ""}`;
 }
 

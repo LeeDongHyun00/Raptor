@@ -1,25 +1,25 @@
 import { ImageResponse } from "next/og";
 import { getRun } from "@/lib/store";
 import { loadFonts } from "@/lib/ogFonts";
+import { designOf } from "@/lib/settings";
 
 // KakaoTalk bizboard banner canvas.
 const W = 1029;
 const H = 258;
 
-// Each variant gets its own high-contrast palette so parallel creatives look distinct.
-const THEMES = [
-  { bg: "#1F4D3A", fg: "#F6F1E7", sub: "#B9CBBF", btnBg: "#E8A33D", btnFg: "#14231C" },
-  { bg: "#F6F1E7", fg: "#14231C", sub: "#5F6B63", btnBg: "#1F4D3A", btnFg: "#F6F1E7" },
-  { bg: "#E8A33D", fg: "#14231C", sub: "#3D2E0C", btnBg: "#14231C", btnFg: "#F6F1E7" },
-];
-
 export async function GET(req: Request, { params }: { params: Promise<{ id: string; n: string }> }) {
   const { id, n } = await params;
   const run = await getRun(id);
   const index = Number(n);
-  const banner = run?.channels?.kakao[index];
-  if (!banner) return new Response("not found", { status: 404 });
-  const t = THEMES[index % THEMES.length];
+  const banner = run?.channels?.kakao?.[index];
+  if (!run || !banner) return new Response("not found", { status: 404 });
+  const d = designOf(run.settings?.design);
+  // Each variant gets its own high-contrast combination so parallel creatives look distinct.
+  const t = [
+    { bg: d.dark, fg: d.light, sub: d.onDarkMute, btnBg: d.accent, btnFg: d.ink },
+    { bg: d.light, fg: d.ink, sub: d.mute, btnBg: d.dark, btnFg: d.light },
+    { bg: d.accent, fg: d.ink, sub: d.ink, btnBg: d.ink, btnFg: d.light },
+  ][index % 3];
 
   const image = new ImageResponse(
     (
