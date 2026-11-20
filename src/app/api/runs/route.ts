@@ -1,5 +1,6 @@
 import { after, NextResponse } from "next/server";
 import { createRun, executeRun } from "@/lib/pipeline";
+import { withViewerKey } from "@/lib/ai";
 import { clearRuns, getRuns } from "@/lib/store";
 
 // Generation with real AI calls can take a few minutes.
@@ -10,13 +11,15 @@ export async function GET() {
 }
 
 /** "지금 실행": start a run immediately and return its id; the work continues after the response. */
-export async function POST() {
+export async function POST(req: Request) {
   const runs = await getRuns();
   // A run still marked running after the function time limit was killed mid-flight.
   const active = runs.find((r) => r.status === "running" && Date.now() - new Date(r.createdAt).getTime() < maxDuration * 1000);
   if (active) return NextResponse.json({ id: active.id, alreadyRunning: true });
-  const run = await createRun("manual");
-  after(() => executeRun(run.id));
+  // The viewer key (if any) must stay bound while the pipeline runs after the response.
+  const withKey = withViewerKey(req);
+  const run = await withKey(() => createRun("manual"));
+  after(() => withKey(() => executeRun(run.id)));
   return NextResponse.json({ id: run.id });
 }
 

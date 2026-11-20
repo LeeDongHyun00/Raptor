@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { Differentiator, Guideline, Material, MaterialKind, VocBoard } from "@/lib/types";
 import { analyze, analyzeVoc, assetUrl, clearVoc, isStaticDemo, removeMaterial, saveGuideline, uploadMaterial } from "@/lib/client/api";
-import { loadStoredKey, storeKey } from "@/lib/client/apiKeyStore";
+import { openKeyPanel } from "./ApiKeyControl";
 import { Badge, Panel, btn, fmtDate } from "./ui";
 
 const KINDS: { kind: MaterialKind; title: string; hint: string; accept: string }[] = [
@@ -221,28 +221,18 @@ function DocAnalysis({ docs, analysis, aiMode, onChange }: {
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [remember, setRemember] = useState(false);
-  // localStorage is not available during prerender, so the saved key is read after mount.
-  useEffect(() => {
-    const saved = loadStoredKey();
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (saved) { setApiKey(saved); setRemember(true); }
-  }, []);
 
   const real = docs.filter((m) => !m.demo);
   const analyzed = analysis.mode === "live" && !!analysis.at;
   // New material since the last analysis is what makes the button available.
   const stale = real.length > 0 && (!analyzed || real.some((m) => m.uploadedAt > analysis.at!));
   const needsKey = aiMode === "demo";
-  const key = apiKey.trim();
 
   async function run() {
     setBusy(true);
     setError("");
-    if (needsKey) storeKey(remember && key ? key : null);
     try {
-      await analyze(!needsKey, key || undefined);
+      await analyze();
       onChange();
     } catch (e) {
       setError(e instanceof Error ? e.message : "분석에 실패했습니다.");
@@ -252,32 +242,15 @@ function DocAnalysis({ docs, analysis, aiMode, onChange }: {
 
   return (
     <div className="mt-5 border-t border-line pt-4">
-      {needsKey && stale && (
-        <div className="mb-3 rounded-xl bg-canvas p-3">
-          <label className="block">
-            <span className="text-xs font-bold">Anthropic API 키</span>
-            <span className="ml-2 text-xs text-mute">서버에 키가 없어 직접 입력이 필요합니다</span>
-            <input
-              type="password" autoComplete="off" spellCheck={false} placeholder="sk-ant-…" value={apiKey} disabled={busy}
-              onChange={(e) => setApiKey(e.target.value)} className={`${input} mt-2 font-mono`}
-            />
-          </label>
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-mute">
-            <label className="flex items-center gap-1.5">
-              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="accent-brand" />
-              이 브라우저에 기억
-            </label>
-            {apiKey && <button type="button" className="font-semibold hover:text-bad" onClick={() => { setApiKey(""); setRemember(false); storeKey(null); }}>키 지우기</button>}
-            <span>키는 이 브라우저에서 Anthropic으로만 전송되고, 문서도 함께 전송됩니다.</span>
-          </div>
-        </div>
-      )}
       <div className="flex flex-wrap items-center gap-3">
-        <button className={btn.primary} disabled={busy || !stale || (needsKey && !key)} onClick={run}>
-          {busy ? "문서를 읽는 중… (1~2분)" : "문서 분석하기"}
-        </button>
+        {needsKey && stale ? (
+          <button className={btn.primary} onClick={openKeyPanel}>API 키 입력하고 분석하기</button>
+        ) : (
+          <button className={btn.primary} disabled={busy || !stale} onClick={run}>{busy ? "문서를 읽는 중… (1~2분)" : "문서 분석하기"}</button>
+        )}
         <p role="status" className="min-w-0 flex-1 text-xs leading-relaxed text-mute">
           {busy ? "차별점과 근거 페이지를 찾고 있습니다."
+            : stale && needsKey ? "새로 올린 문서가 있습니다. 문서를 분석하려면 오른쪽 위에서 API 키를 입력해 주세요."
             : stale ? "새로 올린 문서가 있습니다. 분석하면 차별점 카드가 이 문서 기준으로 바뀝니다. 가이드라인은 바뀌지 않습니다."
             : real.length > 0 ? `${fmtDate(analysis.at!, true)}에 분석했습니다. 새 문서를 올리면 다시 분석할 수 있습니다.`
             : "기본 탑재 문서는 이미 분석되어 있습니다. 새 문서를 올리면 분석 버튼이 켜집니다."}
@@ -298,7 +271,7 @@ function VocCard({ voc, differentiators, aiMode, onChange }: {
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   // Without a key (or a server) the analysis cannot read the pasted text, so say so up front.
-  const sampleOnly = isStaticDemo || aiMode === "demo";
+  const sampleOnly = aiMode === "demo";
 
   async function run(input: Parameters<typeof analyzeVoc>[0]) {
     setBusy(true);
@@ -334,12 +307,12 @@ function VocCard({ voc, differentiators, aiMode, onChange }: {
           <div className="mt-3 flex flex-wrap gap-2">
             <button className={btn.primary} disabled={busy || !text.trim()} onClick={() => run({ text })}>{busy ? "분석하는 중…" : "분석하기"}</button>
             <input ref={fileRef} type="file" accept=".txt,.csv,.xlsx,.xls" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) run({ file: f }); }} />
-            <button className={btn.ghost} disabled={busy || isStaticDemo} title={isStaticDemo ? "서버 배포 버전에서 사용할 수 있습니다" : undefined} onClick={() => fileRef.current?.click()}>파일 올리기</button>
+            <button className={btn.ghost} disabled={busy || sampleOnly} title={sampleOnly ? "API 키를 입력하면 사용할 수 있습니다" : undefined} onClick={() => fileRef.current?.click()}>파일 올리기</button>
             <button className={btn.ghost} disabled={busy} onClick={() => run({ sample: true })}>샘플 통화 요약으로 분석해 보기</button>
           </div>
           {sampleOnly && (
             <p className="mt-3 text-xs leading-relaxed text-warn">
-              {isStaticDemo ? "GitHub Pages 데모" : "API 키가 없는 데모 모드"}에서는 입력한 내용과 관계없이 준비된 샘플 분석 결과를 보여 줍니다.
+              API 키가 없으면 입력한 내용과 관계없이 준비된 샘플 분석 결과를 보여 줍니다. <button type="button" className="font-bold underline" onClick={openKeyPanel}>API 키 입력</button>
             </p>
           )}
           {error && <p role="alert" className="mt-3 text-xs text-bad">{error}</p>}

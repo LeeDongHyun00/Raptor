@@ -1,6 +1,6 @@
 import type { Blog, Guideline, Material, MaterialKind, ProductionSettings, PromoInput, PromoResult, Run, Workspace } from "../types";
 import { demoPromo } from "../studioDemo";
-import { demoBlog, demoCards, demoChannels, demoPlan, demoReviewMissions, demoRevise, demoTopicIndex, sampleNews, sampleTrends, sampleVoc } from "../demo";
+import { demoBlog, demoCards, demoChannels, demoPlan, demoReviewMissions, demoRevise, sampleNews, sampleTrends, sampleVoc } from "../demo";
 import { seedShotFile, seedWorkspace } from "../seed";
 import { newId, newRun, runPipeline } from "../pipelineCore";
 import { blogDocumentHtml } from "../blogHtml";
@@ -9,6 +9,7 @@ import { resolveSettings } from "../settings";
 import type { AnalysisDoc } from "../aiCore";
 import { heuristicSuggestions, type EditSuggestion } from "../suggestRules";
 import { loadStoredKey } from "./apiKeyStore";
+import { contentOf, getAt, labelOf, mergeText, type RunContent } from "../content";
 
 /**
  * Single data-access layer for the UI. With a server it talks to /api/*;
@@ -20,7 +21,10 @@ export const isStaticDemo = process.env.NEXT_PUBLIC_STATIC_DEMO === "1";
 export const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
 export interface Modes {
+  /** Effective mode for this viewer: live when the server has a key or the viewer entered one. */
   ai: "live" | "demo";
+  /** The deployment itself holds a key, so the viewer does not need to enter one. */
+  serverKey: boolean;
   trend: "live" | "sample";
   storage: "supabase" | "file" | "ephemeral" | "browser";
 }
@@ -65,8 +69,14 @@ const localUpdateRun = async (id: string, mutate: (r: Run) => void): Promise<Run
 
 /* ---------- http helpers ---------- */
 
+/** The viewer's key travels with each request so a server without its own key can use it. */
+const keyHeader = (): Record<string, string> => {
+  const key = loadStoredKey();
+  return key ? { "x-anthropic-key": key } : {};
+};
+
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { cache: "no-store", ...init });
+  const res = await fetch(`${BASE}${path}`, { cache: "no-store", ...init, headers: { ...keyHeader(), ...(init?.headers ?? {}) } });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((body as { error?: string }).error ?? `요청에 실패했습니다 (${res.status})`);
   return body as T;
@@ -78,8 +88,11 @@ const jsonBody = (method: string, body: unknown): RequestInit => ({
 /* ---------- API ---------- */
 
 export async function getWorkspace(): Promise<{ ws: Workspace; modes: Modes }> {
-  if (isStaticDemo) return { ws: localWs(), modes: { ai: "demo", trend: "sample", storage: "browser" } };
-  return json("/api/workspace");
+  const hasKey = !!loadStoredKey();
+  if (isStaticDemo) return { ws: localWs(), modes: { ai: hasKey ? "live" : "demo", serverKey: false, trend: "sample", storage: "browser" } };
+  const res = await json<{ ws: Workspace; modes: Omit<Modes, "serverKey"> }>("/api/workspace");
+  const serverKey = res.modes.ai === "live";
+  return { ws: res.ws, modes: { ...res.modes, serverKey, ai: serverKey || hasKey ? "live" : "demo" } };
 }
 
 export async function getRuns(): Promise<Run[]> {
@@ -91,7 +104,7 @@ export async function getRun(id: string): Promise<Run | null> {
   if (isStaticDemo) {
     const run = localRuns().find((r) => r.id === id) ?? null;
     // A reload kills the in-browser pipeline; do not leave that run spinning forever.
-    if (run?.status === "running" && Date.now() - new Date(run.createdAt).getTime() > 30000) {
+    if (run?.status === "running" && !activeRuns.has(id)) {
       return localUpdateRun(id, (r) => { r.status = "failed"; r.error = "페이지를 벗어나 생성이 중단되었습니다. 다시 실행해 주세요."; });
     }
     return run;
@@ -103,26 +116,72 @@ export async function getRun(id: string): Promise<Run | null> {
   }
 }
 
+// Runs whose pipeline is executing in this page; anything else still marked "running" was interrupted.
+const activeRuns = new Set<string>();
+
+/**
+ * Points the AI engine at the viewer's key so the same pipeline the server runs can run here.
+ * Loaded on demand: the SDK and prompts stay out of the bundle until a key is actually used.
+ */
+async function browserEngine(apiKey: string) {
+  const [engine, { default: Anthropic }] = await Promise.all([import("../aiEngine"), import("@anthropic-ai/sdk")]);
+  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+  engine.setAiContext({
+    client: () => client,
+    live: () => true,
+    getAsset: async (id) => {
+      const file = seedShotFile(id);
+      const blob = file
+        ? await fetch(`${BASE}/product-shots/${file}`).then((r) => (r.ok ? r.blob() : undefined))
+        : isStaticDemo ? await (await import("./fileStore")).getFile(id) : await fetch(`${BASE}/api/assets/${id}`).then((r) => (r.ok ? r.blob() : undefined));
+      return blob ? { mime: blob.type || "application/octet-stream", data: await blobToBase64(blob) } : null;
+    },
+  });
+  return engine;
+}
+
 export async function startRun(): Promise<string> {
   if (!isStaticDemo) return (await json<{ id: string }>("/api/runs", { method: "POST" })).id;
-  const run = newRun("manual", "demo", "sample");
+  const key = loadStoredKey();
+  const run = newRun("manual", key ? "live" : "demo", "sample");
   saveLocalRuns([run, ...localRuns()]);
-  // Not awaited: the caller navigates to the run page and watches progress there.
-  void runPipeline(run.id, {
-    stepDelayMs: 700,
+  activeRuns.add(run.id);
+  const store = {
     getWorkspace: async () => localWs(),
-    saveWorkspace: async (ws) => write(WS_KEY, ws),
+    saveWorkspace: async (ws: Workspace) => write(WS_KEY, ws),
     getRuns: async () => localRuns(),
     updateRun: localUpdateRun,
-    collectTrends: async () => ({ trends: sampleTrends, news: sampleNews, mode: "sample" }),
-    describeScreenshots: async () => ({}),
-    planTopic: async ({ usedTopics, voc, usedVocIds }) => demoPlan(usedTopics, voc, usedVocIds),
-    writeBlog: async (_ws, plan) => demoBlog(plan),
-    writeCards: async (ws, plan) => demoCards(plan, ws),
-    writeChannels: async ({ ws, plan }) => demoChannels(plan, ws),
-    reviewMissions: async (g, blog) => demoReviewMissions(g, blog),
-    reviseBlog: async ({ plan, blog, sectionIndexes }) => demoRevise(plan, blog, sectionIndexes),
-  });
+    // Naver's APIs need a server-side secret, so the browser always works from the sample trends.
+    collectTrends: async () => ({ trends: sampleTrends, news: sampleNews, mode: "sample" as const }),
+  };
+  // Not awaited: the caller navigates to the run page and watches progress there.
+  void (async () => {
+    try {
+      if (key) {
+        const ai = await browserEngine(key);
+        await runPipeline(run.id, {
+          ...store, describeScreenshots: ai.describeScreenshots, planTopic: ai.planTopic, writeBlog: ai.writeBlog, writeCards: ai.writeCards,
+          writeChannels: ai.writeChannels, reviewMissions: ai.reviewMissions, reviseBlog: ai.reviseBlog,
+        });
+      } else {
+        await runPipeline(run.id, {
+          ...store,
+          stepDelayMs: 700,
+          describeScreenshots: async () => ({}),
+          planTopic: async ({ usedTopics, voc, usedVocIds }) => demoPlan(usedTopics, voc, usedVocIds),
+          writeBlog: async (_ws, plan) => demoBlog(plan),
+          writeCards: async (ws, plan) => demoCards(plan, ws),
+          writeChannels: async ({ ws, plan }) => demoChannels(plan, ws),
+          reviewMissions: async (g, blog) => demoReviewMissions(g, blog),
+          reviseBlog: async ({ plan, blog, sectionIndexes }) => demoRevise(plan, blog, sectionIndexes),
+        });
+      }
+    } catch (e) {
+      await localUpdateRun(run.id, (r) => { r.status = "failed"; r.error = apiErrorMessage(e); }).catch(() => undefined);
+    } finally {
+      activeRuns.delete(run.id);
+    }
+  })();
   return run.id;
 }
 
@@ -171,7 +230,7 @@ export async function uploadMaterial(kind: MaterialKind, file: File): Promise<vo
   const form = new FormData();
   form.set("kind", kind);
   form.set("file", file);
-  const res = await fetch(`${BASE}/api/materials`, { method: "POST", body: form });
+  const res = await fetch(`${BASE}/api/materials`, { method: "POST", body: form, headers: keyHeader() });
   if (!res.ok) {
     const msg = res.status === 413 ? "파일은 4MB 이하만 올릴 수 있습니다." : (await res.json().catch(() => ({}))).error;
     throw new Error(msg ?? "업로드에 실패했습니다.");
@@ -205,13 +264,36 @@ export async function saveGuideline(g: Omit<Guideline, "source">): Promise<void>
 export async function analyzeVoc(input: { text?: string; file?: File; sample?: boolean }): Promise<void> {
   if (isStaticDemo) {
     const ws = localWs();
-    ws.voc = sampleVoc;
+    const key = loadStoredKey();
+    if (!key || input.sample) {
+      ws.voc = sampleVoc;
+      return write(WS_KEY, ws);
+    }
+    // Same order as the server: split into calls, mask personal data, then analyze. Raw text is never stored.
+    const { maskPII, splitSummaries } = await import("../voc");
+    let summaries: string[];
+    if (input.file) {
+      const e = fileExt(input.file.name);
+      if (e === "xlsx" || e === "xls") summaries = (await import("../docs")).extractSummariesXlsx(new Uint8Array(await input.file.arrayBuffer()));
+      else if (e === "csv") summaries = (await input.file.text()).split(/\r?\n/).filter((l) => l.trim().length >= 5);
+      else if (e === "txt") summaries = splitSummaries(await input.file.text());
+      else throw new Error("TXT, CSV, XLSX 파일만 올릴 수 있습니다.");
+    } else {
+      summaries = splitSummaries(input.text ?? "");
+    }
+    if (summaries.length === 0) throw new Error("분석할 통화 요약이 없습니다. 통화마다 빈 줄로 구분해 붙여 넣어 주세요.");
+    const masked = summaries.slice(0, 300).map(maskPII);
+    try {
+      ws.voc = await (await browserEngine(key)).extractVoc(ws, masked, `${input.file ? "파일 업로드" : "통화 요약 붙여넣기"} · ${masked.length}건`);
+    } catch (e) {
+      throw new Error(apiErrorMessage(e));
+    }
     return write(WS_KEY, ws);
   }
   if (input.file) {
     const form = new FormData();
     form.set("file", input.file);
-    const res = await fetch(`${BASE}/api/voc`, { method: "POST", body: form });
+    const res = await fetch(`${BASE}/api/voc`, { method: "POST", body: form, headers: keyHeader() });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "분석에 실패했습니다.");
     return;
   }
@@ -252,18 +334,17 @@ const apiErrorMessage = (e: unknown) => {
 
 /**
  * Reads the uploaded product documents and rebuilds the differentiator cards.
- * With a server key the server does it; otherwise the browser calls the API with `apiKey`.
+ * A server does it itself (with its own key or the viewer's); the static build calls the API from here.
  */
-export async function analyze(serverHasKey: boolean, apiKey?: string): Promise<void> {
-  if (!isStaticDemo && serverHasKey) return void (await json("/api/analyze", { method: "POST" }));
-  if (!apiKey) throw new Error("문서를 분석하려면 Anthropic API 키가 필요합니다.");
-  const ws = isStaticDemo ? localWs() : (await getWorkspace()).ws;
+export async function analyze(): Promise<void> {
+  if (!isStaticDemo) return void (await json("/api/analyze", { method: "POST" }));
+  const apiKey = loadStoredKey();
+  if (!apiKey) throw new Error("문서를 분석하려면 먼저 API 키를 입력해 주세요.");
+  const ws = localWs();
   const docs: AnalysisDoc[] = [];
   for (const m of ws.materials.filter((x) => x.kind === "doc" && !x.demo)) {
     if (m.text) { docs.push({ name: m.name, kind: "text", text: m.text }); continue; }
-    const blob = isStaticDemo
-      ? await (await import("./fileStore")).getFile(m.id)
-      : await fetch(`${BASE}/api/assets/${m.id}`).then((r) => (r.ok ? r.blob() : undefined));
+    const blob = await (await import("./fileStore")).getFile(m.id);
     if (blob) docs.push({ name: m.name, kind: "pdf", data: await blobToBase64(blob) });
   }
   if (docs.length === 0) throw new Error("분석할 문서가 없습니다. PDF 또는 PPTX 자료를 먼저 올려 주세요.");
@@ -274,14 +355,11 @@ export async function analyze(serverHasKey: boolean, apiKey?: string): Promise<v
   } catch (e) {
     throw new Error(apiErrorMessage(e));
   }
-  if (isStaticDemo) {
-    const fresh = localWs();
-    fresh.differentiators = differentiators;
-    fresh.analyzedAt = new Date().toISOString();
-    fresh.analysisMode = "live";
-    return write(WS_KEY, fresh);
-  }
-  await json("/api/workspace", jsonBody("PUT", { differentiators }));
+  const fresh = localWs();
+  fresh.differentiators = differentiators;
+  fresh.analyzedAt = new Date().toISOString();
+  fresh.analysisMode = "live";
+  write(WS_KEY, fresh);
 }
 
 export async function saveSettings(settings: ProductionSettings): Promise<void> {
@@ -293,27 +371,38 @@ export async function saveSettings(settings: ProductionSettings): Promise<void> 
   await json("/api/workspace", jsonBody("PUT", { settings }));
 }
 
-/** Saves a hand-edited blog and returns the run with a fresh review. */
-export async function saveBlog(run: Run, blog: Blog): Promise<Run> {
-  if (!isStaticDemo) return (await json<{ run: Run }>(`/api/runs/${run.id}`, jsonBody("PATCH", { blog }))).run;
+/** Saves hand-edited copy (any channel) and returns the run with a fresh review. */
+export async function saveContent(run: Run, content: RunContent): Promise<Run> {
+  if (!isStaticDemo) return (await json<{ run: Run }>(`/api/runs/${run.id}`, jsonBody("PATCH", { content }))).run;
   const ws = localWs();
-  const review = buildReview(ws.guideline, blog, run.cards, demoReviewMissions(ws.guideline, blog), run.channels, run.vocItem?.quotes ?? []);
-  return localUpdateRun(run.id, (r) => { r.blog = blog; r.review = review; r.editedAt = new Date().toISOString(); });
+  const next = mergeText(contentOf(run), content);
+  const key = loadStoredKey();
+  let missions = run.review?.missionChecks ?? [];
+  if (next.blog) {
+    try {
+      missions = key ? await (await browserEngine(key)).reviewMissions(ws.guideline, next.blog) : demoReviewMissions(ws.guideline, next.blog);
+    } catch (e) {
+      throw new Error(apiErrorMessage(e));
+    }
+  }
+  const review = buildReview(ws.guideline, next.blog, next.cards, missions, next.channels, run.vocItem?.quotes ?? []);
+  return localUpdateRun(run.id, (r) => {
+    r.blog = next.blog; r.cards = next.cards; r.channels = next.channels; r.review = review; r.editedAt = new Date().toISOString();
+  });
 }
 
 /** Rewrite directions for a selected passage: AI when a key is available, generic advice otherwise. */
-export async function suggestEdits(run: Run, sectionIndex: number, paragraphIndex: number, selection: string): Promise<{ suggestions: EditSuggestion[]; mode: "live" | "demo" }> {
-  if (!isStaticDemo) return json("/api/suggest", jsonBody("POST", { runId: run.id, sectionIndex, paragraphIndex, selection }));
+export async function suggestEdits(run: Run, path: string, selection: string): Promise<{ suggestions: EditSuggestion[]; mode: "live" | "demo" }> {
+  if (!isStaticDemo) return json("/api/suggest", jsonBody("POST", { runId: run.id, path, selection }));
   const key = loadStoredKey();
-  const section = run.blog?.sections[sectionIndex];
-  if (!key || !section) return { suggestions: heuristicSuggestions(selection), mode: "demo" };
+  const value = getAt(contentOf(run), path);
+  if (!key || value === undefined) return { suggestions: heuristicSuggestions(selection), mode: "demo" };
   const ws = localWs();
   const { requestSuggestions } = await import("../aiCore");
   try {
     const suggestions = await requestSuggestions(await browserClient(key), {
-      selection, paragraph: section.paragraphs[paragraphIndex] ?? section.heading, heading: section.heading,
-      topic: run.plan?.topic ?? run.blog!.title, audience: resolveSettings(run.settings ?? ws.settings).audience,
-      keywords: ws.guideline.requiredKeywords.map((k) => k.keyword),
+      selection, paragraph: value, heading: labelOf(path), topic: run.plan?.topic ?? run.blog?.title ?? "",
+      audience: resolveSettings(run.settings ?? ws.settings).audience, keywords: ws.guideline.requiredKeywords.map((k) => k.keyword),
     });
     return { suggestions, mode: "live" };
   } catch (e) {
@@ -357,16 +446,13 @@ export function assetUrl(id: string): string {
   return file ? `${BASE}/product-shots/${file}` : `${BASE}/api/assets/${id}`;
 }
 
+/** Server-rendered image routes. The static build has no server and draws these on a canvas instead (images.ts). */
 export function cardUrl(run: Run, index: number, download = false): string {
-  // The static site cannot render PNGs on demand; sample topics ship pre-rendered.
-  // The cover differs when the plan answers a customer question, so that variant is rendered separately.
-  if (isStaticDemo) return `${BASE}/demo-cards/${resolveSettings(run.settings).design}/${demoTopicIndex(run.plan?.topic ?? "")}/${index === 0 && run.plan?.vocId ? "voc-0" : index}.png`;
-  return `${BASE}/api/runs/${run.id}/cards/${index}${download ? "?download" : ""}`;
+  return `${BASE}/api/runs/${run.id}/cards/${index}?v=${encodeURIComponent(run.editedAt ?? "0")}${download ? "&download" : ""}`;
 }
 
 export function bannerUrl(run: Run, index: number, download = false): string {
-  if (isStaticDemo) return `${BASE}/demo-cards/${resolveSettings(run.settings).design}/${demoTopicIndex(run.plan?.topic ?? "")}/banner-${index}.png`;
-  return `${BASE}/api/runs/${run.id}/banners/${index}${download ? "?download" : ""}`;
+  return `${BASE}/api/runs/${run.id}/banners/${index}?v=${encodeURIComponent(run.editedAt ?? "0")}${download ? "&download" : ""}`;
 }
 
 export function blogExportUrl(run: Run): string | null {

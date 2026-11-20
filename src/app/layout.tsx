@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import Link from "next/link";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
+import { ApiKeyControl } from "@/components/ApiKeyControl";
 
 const pretendard = localFont({
   src: "../assets/fonts/PretendardVariable.woff2",
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <span className="text-lg font-extrabold tracking-tight">Raptor</span>
             </Link>
             <Nav />
+            <ApiKeyControl />
           </div>
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">{children}</main>

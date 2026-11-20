@@ -90,8 +90,8 @@ export async function requestSuggestions(client: Anthropic, args: {
       role: "user",
       content: `글의 주제: ${args.topic}
 타깃 독자: ${args.audience}
-이 부분이 속한 소제목: ${args.heading}
-전체 문단:
+이 문구의 위치: ${args.heading}
+문구 전체:
 ${args.paragraph}
 
 담당자가 고치고 싶어서 선택한 부분:
@@ -99,7 +99,7 @@ ${args.paragraph}
 
 선택한 부분을 고칠 서로 다른 방향 3가지를 추천해 주세요.
 - direction: 무엇을 어떻게 바꾸면 좋은지와 그 이유를 한 문장으로
-- rewrite: 그 방향으로 선택한 부분만 다시 쓴 문장. 앞뒤 문단과 자연스럽게 이어져야 하고, 원문에 없는 사실이나 수치는 넣지 않습니다
+- rewrite: 그 방향으로 선택한 부분만 다시 쓴 문구. 앞뒤와 자연스럽게 이어져야 하고, 원문에 없는 사실이나 수치는 넣지 않습니다. 원래 길이를 크게 넘기지 않습니다(배너·광고 제목처럼 글자 수 제한이 있는 문구일 수 있습니다)
 - 필수 키워드(${args.keywords.join(", ") || "없음"})가 선택한 부분에 있으면 표기 그대로 유지합니다`,
     }],
     output_config: { effort: "low", format: zodOutputFormat(SuggestSchema) },

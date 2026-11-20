@@ -7,7 +7,6 @@
     "build": "next build",
     "start": "next start",
     "build:pages": "bash scripts/build-pages.sh",
-    "render:demo-cards": "node scripts/render-demo-cards.mjs",
     "lint": "eslint"
   },
   "dependencies": {

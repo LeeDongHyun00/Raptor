@@ -75,8 +75,8 @@ export function parseGuidelineXlsx(buf: Uint8Array, source: string): Guideline {
 }
 
 /** Rows of a CRM consultation export: the text of the 내용/요약/상담 columns, one entry per row. */
-export function extractSummariesXlsx(buf: Buffer): string[] {
-  const wb = XLSX.read(buf, { type: "buffer" });
+export function extractSummariesXlsx(buf: Uint8Array): string[] {
+  const wb = XLSX.read(buf, { type: "array" });
   const out: string[] = [];
   for (const name of wb.SheetNames) {
     const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, blankrows: false });

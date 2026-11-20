@@ -7,7 +7,7 @@ import { newRun, runPipeline } from "./pipelineCore";
 export { INTERVAL_DAYS, STEPS, nextRunAt } from "./pipelineCore";
 
 export async function createRun(trigger: Run["trigger"]): Promise<Run> {
-  const run = newRun(trigger, aiMode, trendMode);
+  const run = newRun(trigger, aiMode(), trendMode);
   await addRun(run);
   return run;
 }

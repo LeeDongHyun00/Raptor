@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { Differentiator, ProductionSettings } from "@/lib/types";
 import { getWorkspace, saveWorkspace, storageIsEphemeral, storageMode } from "@/lib/store";
 import { resolveSettings } from "@/lib/settings";
-import { aiMode } from "@/lib/ai";
+import { serverAiMode } from "@/lib/ai";
 import { trendMode } from "@/lib/trends";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   return NextResponse.json({
     ws: await getWorkspace(),
-    modes: { ai: aiMode, trend: trendMode, storage: storageIsEphemeral ? "ephemeral" : storageMode },
+    modes: { ai: serverAiMode, trend: trendMode, storage: storageIsEphemeral ? "ephemeral" : storageMode },
   });
 }
 

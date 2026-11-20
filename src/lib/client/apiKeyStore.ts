@@ -10,6 +10,9 @@ export function loadStoredKey(): string {
   }
 }
 
+/** Fired on this window whenever the key changes, so open screens can switch between demo and live. */
+export const KEY_EVENT = "raptor:key";
+
 export function storeKey(key: string | null) {
   try {
     if (key) window.localStorage.setItem(KEY_STORAGE, key);
@@ -17,4 +20,5 @@ export function storeKey(key: string | null) {
   } catch {
     // Storage blocked (private mode): the key just lives for this page view.
   }
+  window.dispatchEvent(new Event(KEY_EVENT));
 }

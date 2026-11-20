@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { Blog, Channels, Review, Run } from "@/lib/types";
-import type { EditSuggestion } from "@/lib/suggestRules";
+import type { Review, Run } from "@/lib/types";
 import { conceptOf, designOf, resolveSettings } from "@/lib/settings";
-import { blogBodyHtml } from "@/lib/blogHtml";
-import { CHANNEL_LABEL, LIMITS, blogPlainText, emailSubject } from "@/lib/review";
-import { emailDocumentHtml } from "@/lib/emailHtml";
+import { CHANNEL_LABEL } from "@/lib/review";
 import { STEPS } from "@/lib/pipelineCore";
-import { bannerUrl, blogExportUrl, cardUrl, downloadHtml, saveBlog, suggestEdits, assetUrl, decideRun, downloadBlogHtml, getRun } from "@/lib/client/api";
+import { decideRun, getRun, isStaticDemo } from "@/lib/client/api";
+import { EditArea } from "./EditKit";
+import { BlogTab, CardsTab, EmailTab, KakaoTab, SearchTab, ShortsTab } from "./RunTabs";
+import { openKeyPanel } from "./ApiKeyControl";
 import { Badge, Panel, StatusBadge, btn, fmtDate } from "./ui";
 
 
@@ -69,7 +69,7 @@ export function RunView({ initial, disclosure, adHashtag, emailFooter, different
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={run.status} />
               {run.plan && <Badge>트렌드 · {run.plan.trendKeyword}</Badge>}
-              <Badge tone={run.aiMode === "live" ? "good" : "warn"}>{run.aiMode === "live" ? "Claude 생성" : "데모 모드 준비 원고"}</Badge>
+              <Badge tone={run.aiMode === "live" ? "good" : "warn"}>{run.aiMode === "live" ? "AI 생성" : "준비된 원고"}</Badge>
             </div>
             <h1 className="mt-2 text-2xl font-extrabold leading-snug tracking-tight sm:text-3xl">
               {run.plan?.topic ?? (run.status === "failed" ? "이번 회차를 만들지 못했습니다" : "이번 회차를 만들고 있습니다")}
@@ -105,6 +105,12 @@ export function RunView({ initial, disclosure, adHashtag, emailFooter, different
         </p>
       )}
 
+      {ready && run.aiMode === "demo" && (
+        <p className="rounded-xl border border-accent/40 bg-accent-soft px-4 py-3 text-sm leading-relaxed text-warn">
+          API 키 없이 만든 결과라 미리 준비된 원고입니다. <button type="button" className="font-bold underline" onClick={openKeyPanel}>API 키를 입력</button>하고 다시 실행하면 올린 자료로 새로 생성합니다.
+        </p>
+      )}
+
       {run.status === "failed" && (
         <Panel title="실패 원인">
           <p className="text-sm leading-relaxed text-bad">{run.error}</p>
@@ -126,13 +132,21 @@ export function RunView({ initial, disclosure, adHashtag, emailFooter, different
                 ))}
               </div>
             </div>
-            {run.blog && tab === "blog" && <BlogTab run={run} disclosure={disclosure} onChange={setRun} />}
-            {run.cards && tab === "cards" && <CardsTab run={run} disclosure={disclosure} adHashtag={adHashtag} />}
-            {ch.email && tab === "email" && <EmailTab run={run} channels={ch as Channels} footer={emailFooter} />}
-            {ch.kakao && tab === "kakao" && <KakaoTab run={run} channels={ch as Channels} />}
-            {ch.shorts && tab === "shorts" && <ShortsTab channels={ch as Channels} />}
-            {ch.searchAds && tab === "search" && <SearchTab channels={ch as Channels} />}
-            {tab === "plan" && <PlanTab run={run} differentiators={differentiators} />}
+            {tab === "plan" ? (
+              <PlanTab run={run} differentiators={differentiators} />
+            ) : (
+              // Keyed by tab so a selection or a half-finished edit never carries over to another channel.
+              <EditArea key={tab} run={run} onChange={setRun}>
+                <div className="mt-4">
+                  {run.blog && tab === "blog" && <BlogTab run={run} disclosure={disclosure} />}
+                  {run.cards && tab === "cards" && <CardsTab run={run} disclosure={disclosure} adHashtag={adHashtag} />}
+                  {ch.email && tab === "email" && <EmailTab run={run} email={ch.email} footer={emailFooter} />}
+                  {ch.kakao && tab === "kakao" && <KakaoTab run={run} banners={ch.kakao} />}
+                  {ch.shorts && tab === "shorts" && <ShortsTab shorts={ch.shorts} />}
+                  {ch.searchAds && tab === "search" && <SearchTab ads={ch.searchAds} />}
+                </div>
+              </EditArea>
+            )}
           </div>
           <aside className="space-y-4">
             <Checklist review={run.review!} hasBlog={!!run.blog} hasCards={!!run.cards} edited={!!run.editedAt} />
@@ -185,7 +199,11 @@ function Progress({ run }: { run: Run }) {
         })}
       </ol>
       <div className="mt-5" aria-live="polite"><Logs run={run} /></div>
-      {run.aiMode === "live" && <p className="mt-4 text-xs text-mute">실제 생성은 보통 1~3분 걸립니다. 이 페이지를 닫아도 작업은 계속됩니다.</p>}
+      {run.aiMode === "live" && (
+        <p className="mt-4 text-xs text-mute">
+          실제 생성은 보통 1~3분 걸립니다. {isStaticDemo ? "생성은 이 브라우저에서 진행되므로 끝날 때까지 이 탭을 닫거나 새로고침하지 마세요." : "이 페이지를 닫아도 작업은 계속됩니다."}
+        </p>
+      )}
     </Panel>
   );
 }
@@ -254,274 +272,6 @@ function Checklist({ review, hasBlog, hasCards, edited }: { review: Review; hasB
         </>
       )}
     </Panel>
-  );
-}
-
-function CopyButton({ label, getData, className = btn.ghost }: {
-  label: string; getData: () => { text: string; html?: string }; className?: string;
-}) {
-  const [state, setState] = useState<"idle" | "done" | "error">("idle");
-  return (
-    <button
-      className={className}
-      onClick={async () => {
-        const { text, html } = getData();
-        try {
-          if (html && typeof ClipboardItem !== "undefined") {
-            // Rich + plain together so pasting into the blog editor keeps headings.
-            await navigator.clipboard.write([new ClipboardItem({
-              "text/html": new Blob([html], { type: "text/html" }),
-              "text/plain": new Blob([text], { type: "text/plain" }),
-            })]);
-          } else {
-            await navigator.clipboard.writeText(text);
-          }
-          setState("done");
-        } catch {
-          setState("error");
-        }
-        setTimeout(() => setState("idle"), 2000);
-      }}
-    >
-      <span role="status">{state === "done" ? "복사했습니다" : state === "error" ? "복사 실패" : label}</span>
-    </button>
-  );
-}
-
-function BlogTab({ run, disclosure, onChange }: { run: Run; disclosure: string; onChange: (run: Run) => void }) {
-  const blog = run.blog!;
-  const revised = new Set(run.revisions.flatMap((r) => r.sectionIndexes));
-  const [draft, setDraft] = useState<Blog | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  // The passage the reviewer selected by dragging, and the advice asked for it.
-  const [sel, setSel] = useState<{ sec: number; par: number; text: string } | null>(null);
-  const [advice, setAdvice] = useState<{ loading: boolean; items: EditSuggestion[]; mode?: "live" | "demo" }>({ loading: false, items: [] });
-
-  async function save(next: Blog) {
-    setSaving(true);
-    setError("");
-    try {
-      onChange(await saveBlog(run, next));
-      setDraft(null);
-      setSel(null);
-      setAdvice({ loading: false, items: [] });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "저장하지 못했습니다.");
-    }
-    setSaving(false);
-  }
-
-  function readSelection() {
-    const s = window.getSelection();
-    const text = s?.toString().trim() ?? "";
-    const el = (n: Node | null | undefined) => (n instanceof Element ? n : n?.parentElement)?.closest<HTMLElement>("[data-par]");
-    const a = el(s?.anchorNode), f = el(s?.focusNode);
-    // Only a selection inside one paragraph can be replaced unambiguously.
-    if (!a || a !== f || text.length < 2) return;
-    setSel({ sec: Number(a.dataset.sec), par: Number(a.dataset.par), text });
-    setAdvice({ loading: false, items: [] });
-    setError("");
-  }
-
-  async function ask() {
-    if (!sel) return;
-    setAdvice({ loading: true, items: [] });
-    setError("");
-    try {
-      const res = await suggestEdits(run, sel.sec, sel.par, sel.text);
-      setAdvice({ loading: false, items: res.suggestions, mode: res.mode });
-    } catch (e) {
-      setAdvice({ loading: false, items: [] });
-      setError(e instanceof Error ? e.message : "추천을 받지 못했습니다.");
-    }
-  }
-
-  function apply(rewrite: string) {
-    if (!sel) return;
-    const para = blog.sections[sel.sec]?.paragraphs[sel.par] ?? "";
-    if (!para.includes(sel.text)) return setError("선택한 문장을 본문에서 찾지 못했습니다. 다시 선택해 주세요.");
-    const sections = blog.sections.map((s, i) => (i !== sel.sec ? s : { ...s, paragraphs: s.paragraphs.map((p, j) => (j === sel.par ? p.replace(sel.text, rewrite) : p)) }));
-    save({ ...blog, sections });
-  }
-
-  const editing = !!draft;
-  const field = "w-full rounded-lg border border-line bg-white px-3 py-2 leading-relaxed focus:border-brand focus:outline-none";
-  const setSection = (i: number, patch: (s: Blog["sections"][number]) => Blog["sections"][number]) =>
-    setDraft((d) => (d ? { ...d, sections: d.sections.map((s, k) => (k === i ? patch(s) : s)) } : d));
-
-  return (
-    <Panel
-      title="네이버 블로그 글"
-      action={
-        <div className="flex flex-wrap gap-2">
-          {editing ? (
-            <>
-              <button className={btn.ghost} disabled={saving} onClick={() => setDraft(null)}>취소</button>
-              <button className={btn.primary} disabled={saving} onClick={() => draft && save(draft)}>{saving ? "저장하고 검수하는 중…" : "저장하고 다시 검수"}</button>
-            </>
-          ) : (
-            <>
-              <button className={btn.ghost} onClick={() => { setDraft(blog); setSel(null); }}>직접 수정</button>
-              <CopyButton
-                label="글 복사"
-                getData={() => ({
-                  text: `${disclosure}\n\n${blogPlainText(blog)}\n\n${blog.tags.map((t) => `#${t}`).join(" ")}`,
-                  // No images in the clipboard: the blog editor drops pasted image data, so screenshots are uploaded by hand.
-                  html: blogBodyHtml(disclosure, blog, () => null),
-                })}
-              />
-              {blogExportUrl(run) ? (
-                <a className={btn.ghost} href={blogExportUrl(run)!}>HTML 내보내기</a>
-              ) : (
-                <button className={btn.ghost} onClick={() => downloadBlogHtml(run, blog, disclosure)}>HTML 내보내기</button>
-              )}
-            </>
-          )}
-        </div>
-      }
-    >
-      {!editing && (
-        <div className="sticky top-16 z-10 mx-auto mb-4 max-w-2xl rounded-xl border border-accent/40 bg-accent-soft p-3 text-sm">
-          {sel ? (
-            <>
-              <p className="text-xs font-bold text-warn">선택한 부분</p>
-              <p className="mt-1 line-clamp-3 leading-relaxed">“{sel.text}”</p>
-              <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                <button className={btn.primary} disabled={advice.loading || saving} onClick={ask}>{advice.loading ? "추천을 만드는 중…" : "AI 수정 방향 추천"}</button>
-                <button className={btn.text} onClick={() => { setSel(null); setAdvice({ loading: false, items: [] }); }}>선택 해제</button>
-              </div>
-              {advice.items.length > 0 && (
-                <ol className="mt-3 space-y-2">
-                  {advice.items.map((it, i) => (
-                    <li key={i} className="rounded-lg bg-surface p-3">
-                      <p className="text-sm font-semibold leading-relaxed">{i + 1}. {it.direction}</p>
-                      {it.rewrite && (
-                        <div className="mt-2 flex flex-wrap items-start justify-between gap-2">
-                          <p className="min-w-0 flex-1 rounded-md bg-brand-soft px-3 py-2 text-sm leading-relaxed">{it.rewrite}</p>
-                          <button className={btn.ghost} disabled={saving} onClick={() => apply(it.rewrite!)}>이렇게 바꾸기</button>
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                  {advice.mode === "demo" && <li className="text-xs leading-relaxed text-warn">API 키가 없는 데모에서는 문장 특성에 따른 일반 조언만 보여 줍니다. 키가 있으면 선택한 문장을 방향별로 다시 써 줍니다.</li>}
-                </ol>
-              )}
-            </>
-          ) : (
-            <p className="leading-relaxed text-warn">고치고 싶은 문장을 <strong>드래그해서 선택</strong>하면 AI가 수정 방향을 추천합니다. 문장 전체를 손보려면 ‘직접 수정’을 누르세요.</p>
-          )}
-          {error && <p role="alert" className="mt-2 text-xs text-bad">{error}</p>}
-        </div>
-      )}
-      {editing && error && <p role="alert" className="mx-auto mb-3 max-w-2xl text-xs text-bad">{error}</p>}
-
-      <article className="mx-auto max-w-2xl" onMouseUp={editing ? undefined : readSelection} onTouchEnd={editing ? undefined : readSelection} onKeyUp={editing ? undefined : readSelection}>
-        <p className="rounded-lg border border-line bg-canvas px-3 py-2 text-xs text-mute">{disclosure}</p>
-        {editing ? (
-          <label className="mt-5 block">
-            <span className="text-xs font-bold text-mute">제목</span>
-            <input className={`${field} mt-1 text-lg font-extrabold`} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
-          </label>
-        ) : (
-          <h2 className="mt-5 text-2xl font-extrabold leading-snug tracking-tight">{blog.title}</h2>
-        )}
-        {(draft ?? blog).sections.map((s, i) => (
-          <section key={i} className="mt-8">
-            {editing ? (
-              <>
-                <label className="block">
-                  <span className="text-xs font-bold text-mute">소제목 {i + 1}</span>
-                  <input className={`${field} mt-1 font-extrabold`} value={s.heading} onChange={(e) => setSection(i, (x) => ({ ...x, heading: e.target.value }))} />
-                </label>
-                {s.paragraphs.map((p, j) => (
-                  <textarea key={j} aria-label={`소제목 ${i + 1}의 문단 ${j + 1}`} className={`${field} mt-2 text-[15px]`} rows={Math.max(3, Math.ceil(p.length / 42))} value={p}
-                    onChange={(e) => setSection(i, (x) => ({ ...x, paragraphs: x.paragraphs.map((q, k) => (k === j ? e.target.value : q)) }))} />
-                ))}
-              </>
-            ) : (
-              <>
-                <h3 className="flex flex-wrap items-center gap-2 text-lg font-extrabold leading-snug">
-                  {s.heading}
-                  {revised.has(i) && <Badge tone="warn">자동 보완됨</Badge>}
-                </h3>
-                {s.paragraphs.map((p, j) => <p key={j} data-sec={i} data-par={j} className="mt-3 text-[15px] leading-[1.9] text-ink">{p}</p>)}
-              </>
-            )}
-            {s.screenshotId && (
-              <figure className="mt-5">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={assetUrl(s.screenshotId)} alt={s.caption ?? ""} className="mx-auto max-h-[520px] w-auto max-w-full rounded-xl border border-line" />
-                {s.caption && <figcaption className="mt-2 text-center text-xs text-mute">▲ {s.caption}</figcaption>}
-              </figure>
-            )}
-          </section>
-        ))}
-        <p className="mt-8 text-sm font-semibold text-brand">{blog.tags.map((t) => `#${t}`).join(" ")}</p>
-      </article>
-      <p className="mt-6 border-t border-line pt-4 text-xs leading-relaxed text-mute">
-        수정한 내용은 저장할 때 가이드라인 검수를 다시 거칩니다. ‘글 복사’는 서식과 함께 본문을 복사하며 화면 캡처는 포함되지 않으니 블로그 편집기에서 직접 올려 주세요. ‘HTML 내보내기’ 파일에는 이미지가 함께 들어 있습니다.
-      </p>
-    </Panel>
-  );
-}
-
-function CardsTab({ run, disclosure, adHashtag }: { run: Run; disclosure: string; adHashtag: string }) {
-  const cards = run.cards!;
-  const [zipping, setZipping] = useState(false);
-  const [zipError, setZipError] = useState(false);
-  const hashtags = [adHashtag, ...cards.hashtags.filter((h) => h !== adHashtag)].map((h) => `#${h}`).join(" ");
-  const caption = `${disclosure}\n\n${cards.caption}\n\n${hashtags}`;
-
-  async function downloadAll() {
-    setZipping(true);
-    setZipError(false);
-    try {
-      const JSZip = (await import("jszip")).default;
-      const zip = new JSZip();
-      await Promise.all(cards.slides.map(async (_, i) => {
-        const res = await fetch(cardUrl(run, i));
-        if (!res.ok) throw new Error();
-        zip.file(`card-${String(i + 1).padStart(2, "0")}.png`, await res.blob());
-      }));
-      const url = URL.createObjectURL(await zip.generateAsync({ type: "blob" }));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `cardnews-${run.id}.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      setZipError(true);
-    }
-    setZipping(false);
-  }
-
-  return (
-    <div className="space-y-4">
-      <Panel
-        title="인스타그램 카드뉴스"
-        action={
-          <div className="flex items-center gap-3">
-            {zipError && <span role="alert" className="text-xs text-bad">내려받지 못했습니다</span>}
-            <button className={btn.ghost} onClick={downloadAll} disabled={zipping}>{zipping ? "묶는 중…" : "PNG 전체 다운로드"}</button>
-          </div>
-        }
-      >
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-          {cards.slides.map((s, i) => (
-            <li key={i}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={cardUrl(run, i)} alt={`${i + 1}번 카드: ${s.title}`} width={1080} height={1350} loading="lazy" className="h-auto w-full rounded-xl border border-line bg-canvas" />
-              <a href={cardUrl(run, i, true)} download={`card-${String(i + 1).padStart(2, "0")}.png`} className="mt-1.5 block text-center text-xs font-semibold text-mute hover:text-ink">{i + 1}번 PNG 받기</a>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-4 text-xs text-mute">1080×1350px(4:5) · 첫 장에 ‘광고’ 표기가 들어갑니다.</p>
-      </Panel>
-      <Panel title="본문과 해시태그" action={<CopyButton label="본문 복사" getData={() => ({ text: caption })} />}>
-        <p className="whitespace-pre-line text-sm leading-relaxed">{caption}</p>
-      </Panel>
-    </div>
   );
 }
 
@@ -641,152 +391,3 @@ function PlanTab({ run, differentiators }: { run: Run; differentiators: { id: st
   );
 }
 
-const Count = ({ text, max }: { text: string; max: number }) => (
-  <span className={`ml-2 whitespace-nowrap text-xs tabular-nums ${text.length > max ? "font-bold text-bad" : "text-mute"}`}>{text.length}/{max}자</span>
-);
-
-function EmailTab({ run, channels, footer }: { run: Run; channels: Channels; footer: string }) {
-  const email = channels.email;
-  const [pick, setPick] = useState(0);
-  const subject = emailSubject(email.subjects[pick] ?? email.subjects[0] ?? "");
-  const text = `${subject}\n${email.preheader}\n\n${email.greeting}\n\n${email.paragraphs.join("\n\n")}\n\n[${email.ctaLabel}]\n\n${footer}`;
-  return (
-    <Panel
-      title="이메일"
-      action={
-        <div className="flex flex-wrap gap-2">
-          <CopyButton label="메일 복사" getData={() => ({ text })} />
-          <button className={btn.ghost} onClick={() => downloadHtml(`email-${run.id}.html`, emailDocumentHtml(email, subject, footer))}>HTML 내보내기</button>
-        </div>
-      }
-    >
-      <p className="text-xs font-bold text-mute">제목 A/B 후보 · 선택한 제목으로 미리보기와 내보내기가 바뀝니다</p>
-      <div className="mt-2 space-y-2">
-        {email.subjects.map((sub, i) => (
-          <label key={i} className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm ${pick === i ? "border-brand bg-brand-soft" : "border-line bg-canvas/50"}`}>
-            <input type="radio" name="subject" checked={pick === i} onChange={() => setPick(i)} className="accent-brand" />
-            <span className="font-bold text-mute">{String.fromCharCode(65 + i)}</span>
-            <span className="min-w-0 flex-1 font-semibold">{emailSubject(sub)}</span>
-            <Count text={sub} max={LIMITS.emailSubject} />
-          </label>
-        ))}
-      </div>
-      <div className="mx-auto mt-6 max-w-md overflow-hidden rounded-xl border border-line bg-white">
-        <div className="border-b border-line bg-canvas/60 px-5 py-3">
-          <p className="text-sm font-bold leading-snug">{subject}</p>
-          <p className="mt-0.5 text-xs text-mute">{email.preheader}</p>
-        </div>
-        <div className="space-y-3 px-5 py-5 text-[15px] leading-[1.8]">
-          <p>{email.greeting}</p>
-          {email.paragraphs.map((p, i) => <p key={i}>{p}</p>)}
-          <p className="pt-2"><span className="inline-block rounded-full bg-brand px-6 py-3 text-sm font-bold text-canvas">{email.ctaLabel}</span></p>
-        </div>
-        <p className="border-t border-line px-5 py-3 text-[11px] leading-relaxed text-mute">{footer}</p>
-      </div>
-      <p className="mt-5 border-t border-line pt-4 text-xs leading-relaxed text-mute">
-        제목 앞 ‘(광고)’와 수신거부 안내는 정보통신망법에 따라 자동으로 들어갑니다. {"{{이름}}"}과 버튼 링크는 발송 도구에서 채워 주세요. 광고성 메일은 사전에 수신 동의를 받은 사람에게만 보낼 수 있습니다.
-      </p>
-    </Panel>
-  );
-}
-
-function KakaoTab({ run, channels }: { run: Run; channels: Channels }) {
-  return (
-    <Panel title="카카오톡 배너(비즈보드)">
-      <ul className="space-y-5">
-        {channels.kakao.map((k, i) => (
-          <li key={i} className="rounded-xl border border-line bg-canvas/40 p-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={bannerUrl(run, i)} alt={`배너 소재 ${i + 1}: ${k.copy}`} width={1029} height={258} loading="lazy" className="h-auto w-full rounded-lg border border-line bg-canvas" />
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <Badge tone="solid">소재 {i + 1}</Badge>
-              <Badge tone="warn">{k.hook}</Badge>
-              <Badge>대상 · {k.target}</Badge>
-              <a href={bannerUrl(run, i, true)} download={`kakao-banner-${i + 1}.png`} className="ml-auto text-xs font-semibold text-mute hover:text-ink">PNG 받기</a>
-            </div>
-            <p className="mt-2 text-sm"><strong className="font-bold">{k.copy}</strong><Count text={k.copy} max={LIMITS.kakaoCopy} /></p>
-            <p className="text-sm text-mute">{k.sub} · 버튼 “{k.cta}”</p>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-5 border-t border-line pt-4 text-xs leading-relaxed text-mute">
-        1029×258px 시안입니다. 소재는 여러 개를 함께 운영하다 1~2주 단위로 교체하고, 배너에서 약속한 내용이 클릭 후 첫 화면에 바로 보이게 해 주세요. 마감·한정 같은 긴급성 표현은 사실일 때만 쓸 수 있어 자동 생성에서는 쓰지 않습니다. 실제 등록 전 카카오 비즈보드 제작 가이드를 확인하세요.
-      </p>
-    </Panel>
-  );
-}
-
-function ShortsTab({ channels }: { channels: Channels }) {
-  const sh = channels.shorts;
-  const total = sh.scenes.reduce((a, s) => a + s.seconds, 0);
-  const starts = sh.scenes.map((_, i) => sh.scenes.slice(0, i).reduce((a, s) => a + s.seconds, 0));
-  const text = `${sh.title} (${total}초)\n\n${sh.scenes.map((s, i) => `[${starts[i]}~${starts[i] + s.seconds}초]\n화면: ${s.visual}\n대사: ${s.narration}\n자막: ${s.overlay}`).join("\n\n")}\n\n루프: ${sh.loop}\n\n고정 댓글: ${sh.pinnedComment}`;
-  return (
-    <Panel title="쇼츠·릴스·틱톡 대본" action={<CopyButton label="대본 복사" getData={() => ({ text })} />}>
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 className="text-lg font-extrabold leading-snug">{sh.title}</h3>
-        <Badge tone="good">총 {total}초</Badge>
-      </div>
-      <ol className="mt-4 space-y-3">
-        {sh.scenes.map((sc, i) => (
-          <li key={i} className="grid gap-3 rounded-xl border border-line bg-canvas/40 p-4 sm:grid-cols-[5.5rem_1fr]">
-            <div>
-              <p className="text-xs font-bold text-brand">{i === 0 ? "훅" : `장면 ${i + 1}`}</p>
-              <p className="text-sm font-extrabold tabular-nums">{starts[i]}~{starts[i] + sc.seconds}초</p>
-            </div>
-            <dl className="space-y-1.5 text-sm leading-relaxed">
-              <div><dt className="inline text-xs font-bold text-mute">화면 </dt><dd className="inline">{sc.visual}</dd></div>
-              <div><dt className="inline text-xs font-bold text-mute">대사 </dt><dd className="inline">“{sc.narration}”</dd></div>
-              <div><dt className="inline text-xs font-bold text-mute">자막 </dt><dd className="inline"><span className="rounded bg-ink px-2 py-0.5 text-xs font-bold text-canvas">{sc.overlay}</span></dd></div>
-            </dl>
-          </li>
-        ))}
-      </ol>
-      <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl bg-canvas p-4">
-          <dt className="text-xs font-bold text-mute">다시 보게 만드는 루프</dt>
-          <dd className="mt-1.5 text-sm leading-relaxed">{sh.loop}</dd>
-        </div>
-        <div className="rounded-xl bg-brand-soft p-4">
-          <dt className="text-xs font-bold text-brand">고정 댓글</dt>
-          <dd className="mt-1.5 text-sm leading-relaxed">{sh.pinnedComment}</dd>
-        </div>
-      </dl>
-      <p className="mt-5 border-t border-line pt-4 text-xs leading-relaxed text-mute">
-        촬영용 대본입니다. 영상 자체는 만들지 않습니다. 같은 대본을 유튜브 쇼츠, 인스타그램 릴스, 틱톡에 함께 쓸 수 있고, 업로드할 때 유료 광고 포함 표시를 설정해 주세요.
-      </p>
-    </Panel>
-  );
-}
-
-function SearchTab({ channels }: { channels: Channels }) {
-  const ads = channels.searchAds;
-  const text = `[키워드]\n${ads.keywords.join("\n")}\n\n[제외 키워드]\n${ads.negativeKeywords.join("\n")}\n\n${ads.ads.map((a, i) => `[광고 ${i + 1}]\n제목: ${a.headline}\n설명: ${a.description}`).join("\n\n")}\n\n[서브링크]\n${ads.sitelinks.join(" / ")}`;
-  return (
-    <Panel title="검색광고(네이버·구글)" action={<CopyButton label="소재 복사" getData={() => ({ text })} />}>
-      <ul className="space-y-3">
-        {ads.ads.map((a, i) => (
-          <li key={i} className="rounded-xl border border-line bg-white p-4">
-            <p className="text-xs text-mute"><span className="mr-1.5 rounded border border-line px-1 font-bold">광고</span>검색 결과 미리보기 {i + 1}</p>
-            <p className="mt-1.5 text-base font-bold text-[#1a4fb5]">{a.headline}<Count text={a.headline} max={LIMITS.adHeadline} /></p>
-            <p className="mt-0.5 text-sm leading-relaxed">{a.description}<Count text={a.description} max={LIMITS.adDescription} /></p>
-            <p className="mt-2 text-xs text-[#1a4fb5]">{ads.sitelinks.join(" · ")}</p>
-          </li>
-        ))}
-      </ul>
-      <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl bg-brand-soft p-4">
-          <dt className="text-xs font-bold text-brand">구매 의도 키워드</dt>
-          <dd className="mt-2 flex flex-wrap gap-1.5">{ads.keywords.map((k) => <Badge key={k} tone="solid">{k}</Badge>)}</dd>
-        </div>
-        <div className="rounded-xl bg-canvas p-4">
-          <dt className="text-xs font-bold text-mute">제외 키워드</dt>
-          <dd className="mt-2 flex flex-wrap gap-1.5">{ads.negativeKeywords.map((k) => <Badge key={k}>{k}</Badge>)}</dd>
-        </div>
-      </dl>
-      <p className="mt-5 border-t border-line pt-4 text-xs leading-relaxed text-mute">
-        제목 15자·설명 45자 기준으로 검사합니다. 집행 전에 전환 추적을 먼저 설정하고, 광고마다 메시지가 일치하는 전용 랜딩 페이지를 연결하세요. 브랜드 검색어는 별도 캠페인으로 방어하고, 입찰가와 요일·시간대 조정은 광고 관리자에서 직접 설정합니다.
-      </p>
-    </Panel>
-  );
-}

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { aiMode, extractVoc } from "@/lib/ai";
+import { aiMode, extractVoc, withViewerKey } from "@/lib/ai";
 import { sampleVoc } from "@/lib/demo";
 import { extractSummariesXlsx } from "@/lib/docs";
 import { getWorkspace, saveWorkspace } from "@/lib/store";
@@ -15,7 +15,11 @@ const MAX_CALLS = 300;
  * Call summaries -> customer question board. The raw text is masked first and never
  * stored: only the analysis result (question types, counts, short anonymized quotes) is saved.
  */
-export async function POST(req: Request) {
+export function POST(req: Request) {
+  return withViewerKey(req)(() => handle(req));
+}
+
+async function handle(req: Request) {
   try {
     let summaries: string[] = [];
     let label = "";
@@ -39,7 +43,7 @@ export async function POST(req: Request) {
     }
 
     const ws = await getWorkspace();
-    if (sample || aiMode === "demo") {
+    if (sample || aiMode() === "demo") {
       // No API key: store the fictional sample analysis, clearly labelled as such.
       ws.voc = sampleVoc;
     } else {

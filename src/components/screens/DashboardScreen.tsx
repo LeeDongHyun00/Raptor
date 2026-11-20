@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { BASE, cardUrl, getRuns, getWorkspace } from "@/lib/client/api";
+import { BASE, getRuns, getWorkspace } from "@/lib/client/api";
 import { useLoad } from "@/lib/client/useLoad";
 import { INTERVAL_DAYS, nextRunAt } from "@/lib/pipelineCore";
 import { Badge, Loading, Panel, StatusBadge, fmtDate } from "../ui";
 import { ResetHistoryButton, RunNowButton } from "../RunControls";
 import { SettingsPanel } from "../SettingsPanel";
+import { RunImage } from "../RunImage";
 import { resolveSettings } from "@/lib/settings";
 
 const FLOW = [
@@ -119,8 +120,7 @@ export function DashboardScreen() {
               <li key={r.id}>
                 <Link href={`/run?id=${r.id}`} className="flex gap-4 rounded-xl border border-line bg-canvas/50 p-3 transition-colors hover:border-brand">
                   {r.cards && r.status !== "running" ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={cardUrl(r, 0)} alt="" className="h-[150px] w-[120px] shrink-0 rounded-lg border border-line object-cover" />
+                    <RunImage run={r} kind="card" index={0} alt="" className="h-[150px] w-[120px] shrink-0 rounded-lg border border-line object-cover" />
                   ) : (
                     <div className="h-[150px] w-[120px] shrink-0 animate-pulse rounded-lg bg-brand-soft" />
                   )}

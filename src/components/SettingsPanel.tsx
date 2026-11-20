@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ProductionSettings } from "@/lib/types";
 import { CONCEPTS, DESIGNS, OUTPUTS } from "@/lib/settings";
 import { saveSettings } from "@/lib/client/api";
+import { openKeyPanel } from "./ApiKeyControl";
 import { Panel } from "./ui";
 
 const chip = (on: boolean) =>
@@ -106,7 +107,7 @@ export function SettingsPanel({ initial, aiMode, onSaved }: { initial: Productio
       </div>
       {aiMode === "demo" && (
         <p className="mt-5 border-t border-line pt-4 text-xs leading-relaxed text-warn">
-          지금은 API 키가 없는 데모 모드라 준비된 원고를 보여 줍니다. 채널 선택과 디자인은 그대로 반영되지만, 컨셉·타깃 고객·제품 정보 메모는 실제 생성(API 키)에서만 문구에 반영됩니다.
+          API 키가 없어 준비된 원고를 보여 줍니다. 채널 선택과 디자인은 그대로 반영되지만, 컨셉·타깃 고객·제품 정보 메모는 <button type="button" className="font-bold underline" onClick={openKeyPanel}>API 키를 입력</button>해 실제로 생성할 때 문구에 반영됩니다.
         </p>
       )}
     </Panel>
