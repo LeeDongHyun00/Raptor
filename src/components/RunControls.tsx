@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { clearRuns, startRun } from "@/lib/client/api";
 import { btn } from "./ui";
 
 export function RunNowButton({ label = "지금 실행" }: { label?: string }) {
@@ -17,10 +18,7 @@ export function RunNowButton({ label = "지금 실행" }: { label?: string }) {
           setBusy(true);
           setError("");
           try {
-            const res = await fetch("/api/runs", { method: "POST" });
-            if (!res.ok) throw new Error();
-            const { id } = await res.json();
-            router.push(`/runs/${id}`);
+            router.push(`/run?id=${await startRun()}`);
           } catch {
             setError("실행을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
             setBusy(false);
@@ -35,8 +33,7 @@ export function RunNowButton({ label = "지금 실행" }: { label?: string }) {
   );
 }
 
-export function ResetHistoryButton() {
-  const router = useRouter();
+export function ResetHistoryButton({ onDone }: { onDone: () => void }) {
   const [confirming, setConfirming] = useState(false);
   if (!confirming) {
     return <button className={btn.text} onClick={() => setConfirming(true)}>이력 초기화</button>;
@@ -47,9 +44,9 @@ export function ResetHistoryButton() {
       <button
         className="font-bold text-bad hover:underline"
         onClick={async () => {
-          await fetch("/api/runs", { method: "DELETE" });
+          await clearRuns().catch(() => undefined);
           setConfirming(false);
-          router.refresh();
+          onDone();
         }}
       >
         지우기

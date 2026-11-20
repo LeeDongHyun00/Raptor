@@ -24,7 +24,7 @@ export const seedGuideline: Guideline = {
     "마지막 문단에 도입 문의로 이어지는 행동 유도 문구를 넣는다",
   ],
   structure: ["문제 제기", "트렌드 연결", "기능별 해결 방법", "정리와 문의 안내"],
-  minChars: 700,
+  minChars: 650,
 };
 
 export const seedDifferentiators: Differentiator[] = [
@@ -69,9 +69,14 @@ const DEMO_SCREENS: { id: string; name: string; description: string; svg: string
   { id: "demo_shot_report", name: "AI 리포트 화면(샘플).svg", description: "통화 요약과 키워드, 후속 조치가 정리된 AI 리포트 화면", svg: screenSvg("report") },
 ];
 
+/** Raw SVG of a sample screen; usable in the browser as well as on the server. */
+export function demoScreenSvg(id: string): string | null {
+  return DEMO_SCREENS.find((x) => x.id === id)?.svg ?? null;
+}
+
 export function demoAsset(id: string): { mime: string; data: string } | null {
-  const s = DEMO_SCREENS.find((x) => x.id === id);
-  return s ? { mime: "image/svg+xml", data: Buffer.from(s.svg).toString("base64") } : null;
+  const svg = demoScreenSvg(id);
+  return svg ? { mime: "image/svg+xml", data: Buffer.from(svg).toString("base64") } : null;
 }
 
 export function seedWorkspace(): Workspace {

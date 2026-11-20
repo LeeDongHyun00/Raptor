@@ -1,103 +1,20 @@
-import type { Run, Workspace } from "./types";
-import { addRun, getRuns, getWorkspace, newId, saveWorkspace, updateRun } from "./store";
+import type { Run } from "./types";
+import { addRun, getRuns, getWorkspace, saveWorkspace, updateRun } from "./store";
 import { aiMode, describeScreenshots, planTopic, reviewMissions, reviseBlog, writeBlog, writeCards } from "./ai";
 import { collectTrends, trendMode } from "./trends";
-import { buildReview, collectProblems } from "./review";
+import { newRun, runPipeline } from "./pipelineCore";
 
-export const STEPS = ["트렌드 수집", "주제 선정", "콘텐츠 생성", "자동 검수", "보완", "승인 대기"] as const;
-export const INTERVAL_DAYS = 14;
-const MAX_FIX_ROUNDS = 2;
+export { INTERVAL_DAYS, STEPS, nextRunAt } from "./pipelineCore";
 
 export async function createRun(trigger: Run["trigger"]): Promise<Run> {
-  const run: Run = {
-    id: newId("run"),
-    createdAt: new Date().toISOString(),
-    trigger,
-    status: "running",
-    step: STEPS[0],
-    logs: [],
-    aiMode,
-    trendMode,
-    trends: [],
-    news: [],
-    revisions: [],
-  };
+  const run = newRun(trigger, aiMode, trendMode);
   await addRun(run);
   return run;
 }
 
-/** Runs the whole biweekly cycle for one run and leaves it in the approval queue. */
-export async function executeRun(runId: string): Promise<void> {
-  const log = (step: string, message: string, patch?: (r: Run) => void) =>
-    updateRun(runId, (r) => {
-      r.step = step;
-      r.logs.push({ at: new Date().toISOString(), step, message });
-      patch?.(r);
-    });
-
-  try {
-    const ws: Workspace = await getWorkspace();
-    if (ws.differentiators.length === 0) throw new Error("차별점 분석 결과가 없습니다. 먼저 자료를 올리고 차별점을 분석해 주세요.");
-
-    // 1. Trends
-    const { trends, news, mode } = await collectTrends();
-    await log(STEPS[0], mode === "live"
-      ? `네이버 데이터랩에서 키워드 ${trends.length}개, 뉴스 ${news.length}건을 모았습니다.`
-      : `샘플 트렌드 ${trends.length}개를 불러왔습니다(네이버 API 키 미설정).`, (r) => { r.trends = trends; r.news = news; r.trendMode = mode; });
-
-    // 2. Topic — never repeat a topic that already went through the queue.
-    const usedTopics = (await getRuns())
-      .filter((r) => r.id !== runId && r.plan && r.status !== "failed")
-      .map((r) => r.plan!.topic);
-    const plan = await planTopic({ ws, trends, news, usedTopics });
-    await log(STEPS[1], `‘${plan.trendKeyword}’ 트렌드와 연결해 주제를 정했습니다: ${plan.topic}`, (r) => { r.plan = plan; });
-
-    // 3. One plan -> blog post and card news together
-    let shots = ws.materials.filter((m) => m.kind === "screenshot");
-    const described = await describeScreenshots(ws, shots);
-    if (Object.keys(described).length) {
-      shots = shots.map((s) => (described[s.id] ? { ...s, description: described[s.id] } : s));
-      // Cache the vision result so later runs do not re-analyze the same images.
-      const fresh = await getWorkspace();
-      fresh.materials = fresh.materials.map((m) => (described[m.id] ? { ...m, description: described[m.id] } : m));
-      await saveWorkspace(fresh);
-    }
-    const [draft, cards] = await Promise.all([writeBlog(ws, plan, shots), writeCards(ws, plan, shots)]);
-    let blog = draft;
-    await log(STEPS[2], `블로그 글(섹션 ${blog.sections.length}개)과 카드뉴스(${cards.slides.length}장)를 만들었습니다.`, (r) => { r.blog = blog; r.cards = cards; });
-
-    // 4. Review: keywords in code, missions by AI
-    let review = buildReview(ws.guideline, blog, cards, await reviewMissions(ws.guideline, blog));
-    const firstReview = review;
-    await log(STEPS[3], `가이드라인 ${review.total}개 항목 중 ${review.passed}개를 충족했습니다.`, (r) => { r.review = review; r.firstReview = firstReview; });
-
-    // 5. Fix only what failed
-    for (let round = 1; round <= MAX_FIX_ROUNDS && review.passed < review.total; round++) {
-      const { reasons, sectionIndexes } = collectProblems(review, blog);
-      if (sectionIndexes.length === 0) break;
-      const fixes = await reviseBlog({ ws, plan, blog, shots, reasons, sectionIndexes });
-      if (fixes.length === 0) break;
-      const sections = [...blog.sections];
-      for (const f of fixes) sections[f.index] = f.section;
-      blog = { ...blog, sections };
-      review = buildReview(ws.guideline, blog, cards, await reviewMissions(ws.guideline, blog));
-      const applied = fixes.map((f) => f.index);
-      await log(STEPS[4], `미충족 ${reasons.length}건을 해결하도록 섹션 ${applied.map((i) => i + 1).join(", ")}번만 다시 썼습니다. 재검수 결과 ${review.passed}/${review.total}.`, (r) => {
-        r.blog = blog; r.review = review; r.revisions.push({ round, sectionIndexes: applied, reasons });
-      });
-    }
-
-    await log(STEPS[5], review.passed === review.total
-      ? "모든 항목을 충족했습니다. 담당자 승인을 기다립니다."
-      : `${review.total - review.passed}개 항목이 남아 있습니다. 담당자 확인이 필요합니다.`, (r) => { r.status = "pending"; });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    await updateRun(runId, (r) => { r.status = "failed"; r.error = message; });
-  }
-}
-
-/** Next scheduled run: 14 days after the most recent non-failed run. */
-export function nextRunAt(runs: Run[]): Date | null {
-  const last = runs.find((r) => r.status !== "failed");
-  return last ? new Date(new Date(last.createdAt).getTime() + INTERVAL_DAYS * 86400000) : null;
+export function executeRun(runId: string): Promise<void> {
+  return runPipeline(runId, {
+    getWorkspace, saveWorkspace, getRuns, updateRun, collectTrends,
+    describeScreenshots, planTopic, writeBlog, writeCards, reviewMissions, reviseBlog,
+  });
 }

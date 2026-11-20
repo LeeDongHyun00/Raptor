@@ -1,8 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import type { Guideline, Material, MaterialKind } from "@/lib/types";
+import { assetUrl, isStaticDemo, removeMaterial, saveGuideline, uploadMaterial } from "@/lib/client/api";
 import { Badge, Panel, btn } from "./ui";
 
 const KINDS: { kind: MaterialKind; title: string; hint: string; accept: string }[] = [
@@ -12,37 +12,42 @@ const KINDS: { kind: MaterialKind; title: string; hint: string; accept: string }
 
 const size = (n: number) => (n > 1048576 ? `${(n / 1048576).toFixed(1)}MB` : n > 0 ? `${Math.max(1, Math.round(n / 1024))}KB` : "");
 
-export function MaterialsManager({ materials, guideline }: { materials: Material[]; guideline: Guideline }) {
-  const router = useRouter();
+export function MaterialsManager({ materials, guideline, onChange }: { materials: Material[]; guideline: Guideline; onChange: () => void }) {
   const [busy, setBusy] = useState<MaterialKind | null>(null);
   const [error, setError] = useState("");
+  // Bumped after an Excel import so the editor remounts with the imported values;
+  // a plain save must not remount it, or its "saved" status would vanish.
+  const [guideVersion, setGuideVersion] = useState(0);
 
   async function upload(kind: MaterialKind, files: FileList | null) {
     if (!files?.length) return;
     setBusy(kind);
     setError("");
     for (const file of Array.from(files)) {
-      const form = new FormData();
-      form.set("kind", kind);
-      form.set("file", file);
-      const res = await fetch("/api/materials", { method: "POST", body: form });
-      if (!res.ok) {
-        const msg = res.status === 413 ? "파일은 4MB 이하만 올릴 수 있습니다." : (await res.json().catch(() => ({}))).error;
-        setError(`${file.name}: ${msg ?? "업로드에 실패했습니다."}`);
+      try {
+        await uploadMaterial(kind, file);
+      } catch (e) {
+        setError(`${file.name}: ${e instanceof Error ? e.message : "업로드에 실패했습니다."}`);
         break;
       }
     }
+    if (kind === "guideline") setGuideVersion((v) => v + 1);
     setBusy(null);
-    router.refresh();
+    onChange();
   }
 
   async function remove(id: string) {
-    await fetch(`/api/materials/${id}`, { method: "DELETE" });
-    router.refresh();
+    await removeMaterial(id).catch((e) => setError(e instanceof Error ? e.message : "삭제하지 못했습니다."));
+    onChange();
   }
 
   return (
     <div className="space-y-6">
+      {isStaticDemo && (
+        <p className="rounded-xl border border-horn/40 bg-horn-soft px-4 py-3 text-sm leading-relaxed text-[#6d4708]">
+          지금 보시는 것은 서버 없이 동작하는 <strong>GitHub Pages 데모</strong>입니다. 파일 업로드는 서버 배포 버전에서만 되고, 가이드라인 수정은 이 브라우저에 저장되어 다음 생성의 검수에 바로 반영됩니다.
+        </p>
+      )}
       {error && <p role="alert" className="rounded-xl border border-bad/20 bg-bad-soft px-4 py-3 text-sm text-bad">{error}</p>}
       <div className="grid gap-6 lg:grid-cols-2">
         {KINDS.map(({ kind, title, hint, accept }) => {
@@ -55,7 +60,7 @@ export function MaterialsManager({ materials, guideline }: { materials: Material
                   {items.map((m) => (
                     <li key={m.id} className="overflow-hidden rounded-xl border border-line bg-cream/50">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={`/api/assets/${m.id}`} alt={m.description ?? m.name} className="aspect-video w-full bg-cream object-cover" />
+                      <img src={assetUrl(m.id)} alt={m.description ?? m.name} className="aspect-video w-full bg-cream object-cover" />
                       <div className="p-3">
                         <div className="flex items-start justify-between gap-2">
                           <p className="break-all text-xs font-semibold leading-snug">{m.name}</p>
@@ -88,8 +93,9 @@ export function MaterialsManager({ materials, guideline }: { materials: Material
         })}
       </div>
       <GuidelineEditor
-        key={JSON.stringify(guideline)}
+        key={guideVersion}
         guideline={guideline}
+        onSaved={onChange}
         uploadButton={<UploadButton accept=".xlsx,.xls" label="엑셀로 불러오기" busy={busy === "guideline"} onFiles={(f) => upload("guideline", f)} />}
       />
     </div>
@@ -103,7 +109,7 @@ function UploadButton({ accept, multiple, busy, onFiles, label = "파일 올리�
   return (
     <>
       <input ref={ref} type="file" accept={accept} multiple={multiple} hidden onChange={(e) => { onFiles(e.target.files); e.target.value = ""; }} />
-      <button className={btn.ghost} disabled={busy} onClick={() => ref.current?.click()}>{busy ? "올리는 중…" : label}</button>
+      <button className={btn.ghost} disabled={busy || isStaticDemo} title={isStaticDemo ? "서버 배포 버전에서 사용할 수 있습니다" : undefined} onClick={() => ref.current?.click()}>{busy ? "올리는 중…" : label}</button>
     </>
   );
 }
@@ -115,8 +121,7 @@ function RemoveButton({ onClick, name }: { onClick: () => void; name: string }) 
 const lines = (s: string) => s.split("\n").map((x) => x.trim()).filter(Boolean);
 const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-sm leading-relaxed focus:border-forest focus:outline-none";
 
-function GuidelineEditor({ guideline, uploadButton }: { guideline: Guideline; uploadButton: React.ReactNode }) {
-  const router = useRouter();
+function GuidelineEditor({ guideline, uploadButton, onSaved }: { guideline: Guideline; uploadButton: React.ReactNode; onSaved: () => void }) {
   const [keywords, setKeywords] = useState(guideline.requiredKeywords.map((k) => `${k.keyword} | ${k.minCount}`).join("\n"));
   const [missions, setMissions] = useState(guideline.missions.join("\n"));
   const [structure, setStructure] = useState(guideline.structure.join("\n"));
@@ -125,21 +130,21 @@ function GuidelineEditor({ guideline, uploadButton }: { guideline: Guideline; up
 
   async function save() {
     setState("saving");
-    const res = await fetch("/api/guideline", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    try {
+      await saveGuideline({
         requiredKeywords: lines(keywords).map((l) => {
           const [keyword, count] = l.split("|").map((x) => x.trim());
           return { keyword, minCount: Number(count) || 1 };
-        }),
+        }).filter((k) => k.keyword),
         missions: lines(missions),
         structure: lines(structure),
         minChars: Number(minChars) || 0,
-      }),
-    });
-    setState(res.ok ? "saved" : "error");
-    if (res.ok) router.refresh();
+      });
+      setState("saved");
+      onSaved();
+    } catch {
+      setState("error");
+    }
   }
 
   return (

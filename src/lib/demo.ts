@@ -175,6 +175,11 @@ const FEATURE: Record<string, { heading: string; text: string; shot: string; cap
 
 export const DEMO_TOPIC_COUNT = TOPICS.length;
 
+/** Index of a sample topic, used to locate its pre-rendered card images. */
+export function demoTopicIndex(topic: string): number {
+  return TOPICS.findIndex((t) => t.plan.topic === topic);
+}
+
 function topicFor(plan: Plan): DemoTopic {
   return TOPICS.find((t) => t.plan.topic === plan.topic) ?? TOPICS[0];
 }

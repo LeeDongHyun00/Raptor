@@ -134,10 +134,7 @@ export async function deleteAsset(id: string): Promise<void> {
   await kvDelete(`asset:${id}`);
 }
 
-export function newId(prefix: string): string {
-  return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-}
-
+export { newId } from "./pipelineCore";
 export function clearRuns(): Promise<void> {
   const next = runsLock.then(() => kvDelete("runs"));
   runsLock = next.catch(() => undefined);

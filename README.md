@@ -15,7 +15,7 @@ MVP 대상은 티링크 비즈레코딩(통화녹음·CRM·AI 리포트) 1개사
 | `/` | 대시보드 — 다음 자동 실행일, **지금 실행** 버튼, 승인 대기열, 생성 이력(다룬 주제) |
 | `/materials` | 제안서·매뉴얼(PDF, PPTX), 화면 캡처, 가이드라인(엑셀 불러오기·직접 수정) |
 | `/insights` | 차별점 분석 카드 — 일반 방식과의 비교, 근거 문서·페이지 |
-| `/runs/[id]` | 회차 결과 검토 — 블로그 글, 카드뉴스, 기획 근거, 가이드라인 충족도, 승인·반려 |
+| `/run?id=…` | 회차 결과 검토 — 블로그 글, 카드뉴스, 기획 근거, 가이드라인 충족도, 승인·반려 |
 
 ## 파이프라인
 
@@ -56,6 +56,18 @@ npm run dev
 | `CRON_SECRET` | Vercel에서 `/api/cron` 호출 거부(503) |
 
 Supabase를 쓰려면 SQL 편집기에서 `supabase/schema.sql`을 한 번 실행합니다.
+
+## GitHub Pages 데모
+
+서버 없이 흐름을 확인할 수 있는 정적 데모를 GitHub Pages에 배포합니다(`.github/workflows/pages.yml`).
+
+- 주소: `https://<계정>.github.io/Raptor/`
+- 저장소 **Settings → Pages → Source**를 **GitHub Actions**로 설정해야 합니다.
+- 데모 모드 전용입니다. 샘플 파이프라인이 브라우저에서 실행되고 상태는 그 브라우저의 localStorage에 저장됩니다.
+- 파일 업로드, 실제 문서 분석, Claude·네이버 연동, 격주 Cron은 서버 배포(Vercel)에서만 동작합니다.
+- 카드뉴스 PNG는 샘플 주제용으로 미리 렌더링한 파일(`public/demo-cards/`)을 씁니다. 카드 디자인이나 샘플 문구를 바꾸면 데모 모드로 서버를 띄운 뒤 `npm run render:demo-cards`로 다시 만듭니다.
+
+로컬에서 정적 빌드를 만들려면 `PAGES_BASE_PATH=/Raptor npm run build:pages`를 실행합니다(결과물은 `out/`).
 
 ## 격주 스케줄
 

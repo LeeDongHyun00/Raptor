@@ -1,11 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { analyze } from "@/lib/client/api";
 import { btn } from "./ui";
 
-export function AnalyzeButton({ canAnalyze }: { canAnalyze: boolean }) {
-  const router = useRouter();
+export function AnalyzeButton({ canAnalyze, onDone }: { canAnalyze: boolean; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   return (
@@ -17,10 +16,9 @@ export function AnalyzeButton({ canAnalyze }: { canAnalyze: boolean }) {
         onClick={async () => {
           setBusy(true);
           setError("");
-          const res = await fetch("/api/analyze", { method: "POST" });
-          if (!res.ok) setError((await res.json().catch(() => ({}))).error ?? "분석에 실패했습니다.");
+          await analyze().catch((e) => setError(e instanceof Error ? e.message : "분석에 실패했습니다."));
           setBusy(false);
-          router.refresh();
+          onDone();
         }}
       >
         {busy ? "문서를 읽는 중… (1~2분)" : "다시 분석"}

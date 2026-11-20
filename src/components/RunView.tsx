@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type { Review, Run } from "@/lib/types";
 import { blogBodyHtml } from "@/lib/blogHtml";
 import { blogPlainText } from "@/lib/review";
+import { blogExportUrl, cardUrl, assetUrl, decideRun, downloadBlogHtml, getRun } from "@/lib/client/api";
 import { Badge, Panel, StatusBadge, btn, fmtDate } from "./ui";
 
 const STEPS = ["트렌드 수집", "주제 선정", "콘텐츠 생성", "자동 검수", "보완", "승인 대기"];
@@ -27,21 +28,20 @@ export function RunView({ initial, disclosure, adHashtag, differentiators }: Pro
   useEffect(() => {
     if (run.status !== "running") return;
     const t = setInterval(async () => {
-      const res = await fetch(`/api/runs/${run.id}`, { cache: "no-store" }).catch(() => null);
-      if (res?.ok) setRun((await res.json()).run);
-    }, 1200);
+      const next = await getRun(run.id).catch(() => null);
+      if (next) setRun(next);
+    }, 600);
     return () => clearInterval(t);
   }, [run.status, run.id]);
 
   async function decide(status: "approved" | "rejected" | "pending") {
     setDeciding(true);
     setActionError("");
-    const res = await fetch(`/api/runs/${run.id}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (res.ok) setRun(json.run);
-    else setActionError(json.error ?? "상태를 바꾸지 못했습니다.");
+    try {
+      setRun(await decideRun(run.id, status));
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "상태를 바꾸지 못했습니다.");
+    }
     setDeciding(false);
   }
 
@@ -271,7 +271,11 @@ function BlogTab({ run, disclosure }: { run: Run; disclosure: string }) {
               html: blogBodyHtml(disclosure, blog, () => null),
             })}
           />
-          <a className={btn.ghost} href={`/api/runs/${run.id}/blog`}>HTML 내보내기</a>
+          {blogExportUrl(run) ? (
+            <a className={btn.ghost} href={blogExportUrl(run)!}>HTML 내보내기</a>
+          ) : (
+            <button className={btn.ghost} onClick={() => downloadBlogHtml(run, blog, disclosure)}>HTML 내보내기</button>
+          )}
         </div>
       }
     >
@@ -288,7 +292,7 @@ function BlogTab({ run, disclosure }: { run: Run; disclosure: string }) {
             {s.screenshotId && (
               <figure className="mt-5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/api/assets/${s.screenshotId}`} alt={s.caption ?? ""} className="w-full rounded-xl border border-line" />
+                <img src={assetUrl(s.screenshotId)} alt={s.caption ?? ""} className="w-full rounded-xl border border-line" />
                 {s.caption && <figcaption className="mt-2 text-center text-xs text-mute">▲ {s.caption}</figcaption>}
               </figure>
             )}
@@ -317,7 +321,7 @@ function CardsTab({ run, disclosure, adHashtag }: { run: Run; disclosure: string
       const JSZip = (await import("jszip")).default;
       const zip = new JSZip();
       await Promise.all(cards.slides.map(async (_, i) => {
-        const res = await fetch(`/api/runs/${run.id}/cards/${i}`);
+        const res = await fetch(cardUrl(run, i));
         if (!res.ok) throw new Error();
         zip.file(`card-${String(i + 1).padStart(2, "0")}.png`, await res.blob());
       }));
@@ -348,8 +352,8 @@ function CardsTab({ run, disclosure, adHashtag }: { run: Run; disclosure: string
           {cards.slides.map((s, i) => (
             <li key={i}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={`/api/runs/${run.id}/cards/${i}`} alt={`${i + 1}번 카드: ${s.title}`} width={1080} height={1350} loading="lazy" className="h-auto w-full rounded-xl border border-line bg-cream" />
-              <a href={`/api/runs/${run.id}/cards/${i}?download`} className="mt-1.5 block text-center text-xs font-semibold text-mute hover:text-ink">{i + 1}번 PNG 받기</a>
+              <img src={cardUrl(run, i)} alt={`${i + 1}번 카드: ${s.title}`} width={1080} height={1350} loading="lazy" className="h-auto w-full rounded-xl border border-line bg-cream" />
+              <a href={cardUrl(run, i, true)} download={`card-${String(i + 1).padStart(2, "0")}.png`} className="mt-1.5 block text-center text-xs font-semibold text-mute hover:text-ink">{i + 1}번 PNG 받기</a>
             </li>
           ))}
         </ul>

@@ -14,7 +14,7 @@ export function Nav() {
   return (
     <nav className="flex gap-1 text-sm font-semibold">
       {items.map((it) => {
-        const active = it.href === "/" ? path === "/" || path.startsWith("/runs") : path.startsWith(it.href);
+        const active = it.href === "/" ? path === "/" || path.startsWith("/run") : path.startsWith(it.href);
         return (
           <Link
             key={it.href}

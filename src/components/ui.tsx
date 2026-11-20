@@ -53,3 +53,14 @@ export const btn = {
   ghost: "inline-flex items-center justify-center gap-2 rounded-full border border-line bg-paper px-4 py-2 text-sm font-semibold text-ink transition-colors hover:border-forest",
   text: "text-sm font-semibold text-mute underline-offset-4 hover:text-ink hover:underline",
 };
+
+export function Loading({ error }: { error?: string }) {
+  return error ? (
+    <p role="alert" className="rounded-xl border border-bad/20 bg-bad-soft px-4 py-3 text-sm text-bad">{error}</p>
+  ) : (
+    <div className="space-y-4" aria-busy="true" aria-label="불러오는 중">
+      <div className="h-40 animate-pulse rounded-3xl bg-forest-soft" />
+      <div className="h-24 animate-pulse rounded-2xl bg-paper" />
+    </div>
+  );
+}
