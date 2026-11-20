@@ -10,8 +10,8 @@ import { ResetHistoryButton, RunNowButton } from "../RunControls";
 const FLOW = [
   { n: "1", title: "차별점 분석", body: "제안서·매뉴얼에서 강점을 뽑고 근거 페이지를 표시" },
   { n: "2", title: "트렌드 연결", body: "2주간 검색어·뉴스에서 제품과 맞는 주제를 선정" },
-  { n: "3", title: "동시 생성", body: "하나의 기획으로 블로그 글과 카드뉴스를 함께 제작" },
-  { n: "4", title: "자동 검수", body: "키워드·미션을 검사하고 미충족 부분만 다시 작성" },
+  { n: "3", title: "6개 채널 동시 생성", body: "하나의 핵심 메시지를 블로그·인스타그램·이메일·카카오톡 배너·쇼츠·검색광고 형식으로" },
+  { n: "4", title: "자동 검수", body: "키워드·미션·채널별 형식 규칙을 검사하고 미충족 부분만 다시 작성" },
   { n: "5", title: "담당자 승인", body: "검토 후 승인하면 복사·내보내기로 직접 업로드" },
 ];
 
@@ -34,10 +34,10 @@ export function DashboardScreen() {
           <div>
             <p className="text-sm font-semibold text-horn">{ws.product.company} · {ws.product.name}</p>
             <h1 className="mt-2 text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl">
-              자료만 넣어 두면,<br />2주마다 콘텐츠가 승인함에 도착합니다
+              자료만 넣어 두면,<br />2주마다 6개 채널 소재가 승인함에 도착합니다
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-cream/80">
-              {ws.product.summary}의 차별점을 요즘 트렌드와 엮어 네이버 블로그 글과 인스타그램 카드뉴스를 함께 만들고, 가이드라인 검수까지 마친 뒤 담당자 승인을 기다립니다.
+              {ws.product.summary}의 차별점을 요즘 트렌드와 엮어 하나의 핵심 메시지를 정하고, 블로그·인스타그램·이메일·카카오톡 배너·쇼츠·검색광고에 맞는 형식으로 각각 만든 뒤 검수까지 마쳐 담당자 승인을 기다립니다.
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-4">
               <RunNowButton />

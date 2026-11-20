@@ -2,23 +2,25 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { Review, Run } from "@/lib/types";
+import type { Channels, Review, Run } from "@/lib/types";
 import { blogBodyHtml } from "@/lib/blogHtml";
-import { blogPlainText } from "@/lib/review";
-import { blogExportUrl, cardUrl, assetUrl, decideRun, downloadBlogHtml, getRun } from "@/lib/client/api";
+import { CHANNEL_LABEL, LIMITS, blogPlainText, emailSubject } from "@/lib/review";
+import { emailDocumentHtml } from "@/lib/emailHtml";
+import { bannerUrl, blogExportUrl, cardUrl, downloadHtml, assetUrl, decideRun, downloadBlogHtml, getRun } from "@/lib/client/api";
 import { Badge, Panel, StatusBadge, btn, fmtDate } from "./ui";
 
 const STEPS = ["트렌드 수집", "주제 선정", "콘텐츠 생성", "자동 검수", "보완", "승인 대기"];
-type Tab = "blog" | "cards" | "plan";
+type Tab = "blog" | "cards" | "email" | "kakao" | "shorts" | "search" | "plan";
 
 interface Props {
   initial: Run;
   disclosure: string;
   adHashtag: string;
+  emailFooter: string;
   differentiators: { id: string; title: string }[];
 }
 
-export function RunView({ initial, disclosure, adHashtag, differentiators }: Props) {
+export function RunView({ initial, disclosure, adHashtag, emailFooter, differentiators }: Props) {
   const [run, setRun] = useState(initial);
   const [tab, setTab] = useState<Tab>("blog");
   const [deciding, setDeciding] = useState(false);
@@ -103,16 +105,26 @@ export function RunView({ initial, disclosure, adHashtag, differentiators }: Pro
       {ready && (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0 space-y-4">
-            <div role="tablist" className="flex gap-1 rounded-full border border-line bg-paper p-1 text-sm font-bold sm:w-fit">
-              {([["blog", "블로그 글"], ["cards", `카드뉴스 ${run.cards!.slides.length}장`], ["plan", "기획 근거"]] as const).map(([k, label]) => (
-                <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
-                  className={`flex-1 whitespace-nowrap rounded-full px-4 py-2 transition-colors ${tab === k ? "bg-forest text-cream" : "text-mute hover:text-ink"}`}>
-                  {label}
-                </button>
-              ))}
+            <div className="-mx-1 overflow-x-auto px-1 pb-1">
+              <div role="tablist" className="flex w-max gap-1 rounded-full border border-line bg-paper p-1 text-sm font-bold">
+                {([
+                  ["blog", "블로그"], ["cards", "인스타그램"],
+                  ...(run.channels ? ([["email", "이메일"], ["kakao", "카카오톡 배너"], ["shorts", "쇼츠·릴스"], ["search", "검색광고"]] as const) : []),
+                  ["plan", "기획 근거"],
+                ] as const).map(([k, label]) => (
+                  <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+                    className={`whitespace-nowrap rounded-full px-4 py-2 transition-colors ${tab === k ? "bg-forest text-cream" : "text-mute hover:text-ink"}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
             {tab === "blog" && <BlogTab run={run} disclosure={disclosure} />}
             {tab === "cards" && <CardsTab run={run} disclosure={disclosure} adHashtag={adHashtag} />}
+            {run.channels && tab === "email" && <EmailTab run={run} channels={run.channels} footer={emailFooter} />}
+            {run.channels && tab === "kakao" && <KakaoTab run={run} channels={run.channels} />}
+            {run.channels && tab === "shorts" && <ShortsTab channels={run.channels} />}
+            {run.channels && tab === "search" && <SearchTab channels={run.channels} />}
             {tab === "plan" && <PlanTab run={run} differentiators={differentiators} />}
           </div>
           <aside className="space-y-4">
@@ -125,8 +137,12 @@ export function RunView({ initial, disclosure, adHashtag, differentiators }: Pro
                 </p>
                 <ol className="mt-3 space-y-3">
                   {run.revisions.map((rv) => (
-                    <li key={rv.round} className="rounded-xl bg-cream p-3 text-xs leading-relaxed">
-                      <p className="font-bold">{rv.round}차 보완 · 섹션 {rv.sectionIndexes.map((i) => i + 1).join(", ")}번 재작성</p>
+                    <li key={`${rv.round}-${rv.channels?.join() ?? ""}`} className="rounded-xl bg-cream p-3 text-xs leading-relaxed">
+                      <p className="font-bold">
+                        {rv.channels?.length
+                          ? `채널 보완 · ${rv.channels.map((c) => CHANNEL_LABEL[c]).join(", ")} 재생성`
+                          : `블로그 ${rv.round}차 보완 · 섹션 ${rv.sectionIndexes.map((i) => i + 1).join(", ")}번 재작성`}
+                      </p>
                       <ul className="mt-1.5 list-disc space-y-1 pl-4 text-mute">
                         {rv.reasons.map((r, i) => <li key={i}>{r}</li>)}
                       </ul>
@@ -203,7 +219,7 @@ function Checklist({ review }: { review: Review }) {
       <div className="h-2 overflow-hidden rounded-full bg-cream">
         <div className={`h-full rounded-full ${all ? "bg-forest" : "bg-horn"}`} style={{ width: `${(review.passed / review.total) * 100}%` }} />
       </div>
-      <p className="mb-1 mt-4 text-xs font-bold text-mute">필수 키워드 · 코드 검사</p>
+      <p className="mb-1 mt-4 text-xs font-bold text-mute">블로그·인스타그램 · 코드 검사</p>
       <ul className="divide-y divide-line/60">
         {review.keywordChecks.map((k) => (
           <Check key={k.keyword} pass={k.pass} label={k.keyword} detail={`${k.count}회 사용 · 기준 ${k.minCount}회 이상`} />
@@ -212,9 +228,17 @@ function Checklist({ review }: { review: Review }) {
         <Check pass={review.cardCountOk} label="카드뉴스 6~8장" />
         <Check pass={review.adDisclosure} label="‘광고’ 표기" detail="공정위 추천·보증 지침에 따라 자동 삽입" />
       </ul>
+      {review.channelChecks && review.channelChecks.length > 0 && (
+        <>
+          <p className="mb-1 mt-4 text-xs font-bold text-mute">채널별 형식 규칙 · 코드 검사</p>
+          <ul className="divide-y divide-line/60">
+            {review.channelChecks.map((c, i) => <Check key={i} pass={c.pass} label={c.label} detail={c.detail} />)}
+          </ul>
+        </>
+      )}
       {review.missionChecks.length > 0 && (
         <>
-          <p className="mb-1 mt-4 text-xs font-bold text-mute">미션 · AI 검수</p>
+          <p className="mb-1 mt-4 text-xs font-bold text-mute">블로그 미션 · AI 검수</p>
           <ul className="divide-y divide-line/60">
             {review.missionChecks.map((m, i) => <Check key={i} pass={m.pass} label={m.mission} detail={m.note} />)}
           </ul>
@@ -373,6 +397,12 @@ function PlanTab({ run, differentiators }: { run: Run; differentiators: { id: st
     <div className="space-y-4">
       <Panel title="이 주제를 고른 이유">
         <p className="text-sm leading-relaxed">{plan.reason}</p>
+        {plan.coreMessage && (
+          <p className="mt-4 rounded-xl border border-horn/40 bg-horn-soft p-4 text-sm leading-relaxed">
+            <span className="block text-xs font-bold text-[#8a5a0b]">모든 채널이 반복하는 핵심 메시지</span>
+            <strong className="mt-1 block text-base font-extrabold">{plan.coreMessage}</strong>
+          </p>
+        )}
         <dl className="mt-4 grid gap-3 sm:grid-cols-2">
           <div className="rounded-xl bg-cream p-4">
             <dt className="text-xs font-bold text-mute">풀어 가는 관점</dt>
@@ -388,6 +418,23 @@ function PlanTab({ run, differentiators }: { run: Run; differentiators: { id: st
           </div>
         </dl>
       </Panel>
+      {run.channels && (
+        <Panel title="채널별 역할">
+          <ol className="grid gap-3 sm:grid-cols-3">
+            {[
+              ["1. 처음 알리기", "인스타그램 · 쇼츠·릴스 · 카카오톡 배너", "스크롤을 멈추게 하는 훅과 한 줄 메시지"],
+              ["2. 비교·검토 잡기", "블로그 · 검색광고", "검색 의도에 답하는 글과 구매 의도 키워드"],
+              ["3. 전환·재방문", "이메일", "관심을 보인 사람에게 행동 하나만 요청"],
+            ].map(([stage, channels, how]) => (
+              <li key={stage} className="rounded-xl bg-cream p-4">
+                <p className="text-xs font-bold text-forest">{stage}</p>
+                <p className="mt-1.5 text-sm font-bold leading-snug">{channels}</p>
+                <p className="mt-1 text-xs leading-relaxed text-mute">{how}</p>
+              </li>
+            ))}
+          </ol>
+        </Panel>
+      )}
       <Panel title="최근 2주 검색어 트렌드" action={<Badge tone={run.trendMode === "live" ? "good" : "warn"}>{run.trendMode === "live" ? "네이버 데이터랩" : "샘플 데이터"}</Badge>}>
         <ul className="space-y-2.5">
           {run.trends.map((t) => {
@@ -422,5 +469,155 @@ function PlanTab({ run, differentiators }: { run: Run; differentiators: { id: st
         </Panel>
       )}
     </div>
+  );
+}
+
+const Count = ({ text, max }: { text: string; max: number }) => (
+  <span className={`ml-2 whitespace-nowrap text-xs tabular-nums ${text.length > max ? "font-bold text-bad" : "text-mute"}`}>{text.length}/{max}자</span>
+);
+
+function EmailTab({ run, channels, footer }: { run: Run; channels: Channels; footer: string }) {
+  const email = channels.email;
+  const [pick, setPick] = useState(0);
+  const subject = emailSubject(email.subjects[pick] ?? email.subjects[0] ?? "");
+  const text = `${subject}\n${email.preheader}\n\n${email.greeting}\n\n${email.paragraphs.join("\n\n")}\n\n[${email.ctaLabel}]\n\n${footer}`;
+  return (
+    <Panel
+      title="이메일"
+      action={
+        <div className="flex flex-wrap gap-2">
+          <CopyButton label="메일 복사" getData={() => ({ text })} />
+          <button className={btn.ghost} onClick={() => downloadHtml(`email-${run.id}.html`, emailDocumentHtml(email, subject, footer))}>HTML 내보내기</button>
+        </div>
+      }
+    >
+      <p className="text-xs font-bold text-mute">제목 A/B 후보 · 선택한 제목으로 미리보기와 내보내기가 바뀝니다</p>
+      <div className="mt-2 space-y-2">
+        {email.subjects.map((sub, i) => (
+          <label key={i} className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm ${pick === i ? "border-forest bg-forest-soft" : "border-line bg-cream/50"}`}>
+            <input type="radio" name="subject" checked={pick === i} onChange={() => setPick(i)} className="accent-[#1f4d3a]" />
+            <span className="font-bold text-mute">{String.fromCharCode(65 + i)}</span>
+            <span className="min-w-0 flex-1 font-semibold">{emailSubject(sub)}</span>
+            <Count text={sub} max={LIMITS.emailSubject} />
+          </label>
+        ))}
+      </div>
+      <div className="mx-auto mt-6 max-w-md overflow-hidden rounded-2xl border border-line bg-white">
+        <div className="border-b border-line bg-cream/60 px-5 py-3">
+          <p className="text-sm font-bold leading-snug">{subject}</p>
+          <p className="mt-0.5 text-xs text-mute">{email.preheader}</p>
+        </div>
+        <div className="space-y-3 px-5 py-5 text-[15px] leading-[1.8]">
+          <p>{email.greeting}</p>
+          {email.paragraphs.map((p, i) => <p key={i}>{p}</p>)}
+          <p className="pt-2"><span className="inline-block rounded-full bg-forest px-6 py-3 text-sm font-bold text-cream">{email.ctaLabel}</span></p>
+        </div>
+        <p className="border-t border-line px-5 py-3 text-[11px] leading-relaxed text-mute">{footer}</p>
+      </div>
+      <p className="mt-5 border-t border-line pt-4 text-xs leading-relaxed text-mute">
+        제목 앞 ‘(광고)’와 수신거부 안내는 정보통신망법에 따라 자동으로 들어갑니다. {"{{이름}}"}과 버튼 링크는 발송 도구에서 채워 주세요. 광고성 메일은 사전에 수신 동의를 받은 사람에게만 보낼 수 있습니다.
+      </p>
+    </Panel>
+  );
+}
+
+function KakaoTab({ run, channels }: { run: Run; channels: Channels }) {
+  return (
+    <Panel title="카카오톡 배너(비즈보드)">
+      <ul className="space-y-5">
+        {channels.kakao.map((k, i) => (
+          <li key={i} className="rounded-xl border border-line bg-cream/40 p-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={bannerUrl(run, i)} alt={`배너 소재 ${i + 1}: ${k.copy}`} width={1029} height={258} loading="lazy" className="h-auto w-full rounded-lg border border-line bg-cream" />
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Badge tone="solid">소재 {i + 1}</Badge>
+              <Badge tone="warn">{k.hook}</Badge>
+              <Badge>대상 · {k.target}</Badge>
+              <a href={bannerUrl(run, i, true)} download={`kakao-banner-${i + 1}.png`} className="ml-auto text-xs font-semibold text-mute hover:text-ink">PNG 받기</a>
+            </div>
+            <p className="mt-2 text-sm"><strong className="font-bold">{k.copy}</strong><Count text={k.copy} max={LIMITS.kakaoCopy} /></p>
+            <p className="text-sm text-mute">{k.sub} · 버튼 “{k.cta}”</p>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-5 border-t border-line pt-4 text-xs leading-relaxed text-mute">
+        1029×258px 시안입니다. 소재는 여러 개를 함께 운영하다 1~2주 단위로 교체하고, 배너에서 약속한 내용이 클릭 후 첫 화면에 바로 보이게 해 주세요. 마감·한정 같은 긴급성 표현은 사실일 때만 쓸 수 있어 자동 생성에서는 쓰지 않습니다. 실제 등록 전 카카오 비즈보드 제작 가이드를 확인하세요.
+      </p>
+    </Panel>
+  );
+}
+
+function ShortsTab({ channels }: { channels: Channels }) {
+  const sh = channels.shorts;
+  const total = sh.scenes.reduce((a, s) => a + s.seconds, 0);
+  const starts = sh.scenes.map((_, i) => sh.scenes.slice(0, i).reduce((a, s) => a + s.seconds, 0));
+  const text = `${sh.title} (${total}초)\n\n${sh.scenes.map((s, i) => `[${starts[i]}~${starts[i] + s.seconds}초]\n화면: ${s.visual}\n대사: ${s.narration}\n자막: ${s.overlay}`).join("\n\n")}\n\n루프: ${sh.loop}\n\n고정 댓글: ${sh.pinnedComment}`;
+  return (
+    <Panel title="쇼츠·릴스·틱톡 대본" action={<CopyButton label="대본 복사" getData={() => ({ text })} />}>
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-lg font-extrabold leading-snug">{sh.title}</h3>
+        <Badge tone="good">총 {total}초</Badge>
+      </div>
+      <ol className="mt-4 space-y-3">
+        {sh.scenes.map((sc, i) => (
+          <li key={i} className="grid gap-3 rounded-xl border border-line bg-cream/40 p-4 sm:grid-cols-[5.5rem_1fr]">
+            <div>
+              <p className="text-xs font-bold text-forest">{i === 0 ? "훅" : `장면 ${i + 1}`}</p>
+              <p className="text-sm font-extrabold tabular-nums">{starts[i]}~{starts[i] + sc.seconds}초</p>
+            </div>
+            <dl className="space-y-1.5 text-sm leading-relaxed">
+              <div><dt className="inline text-xs font-bold text-mute">화면 </dt><dd className="inline">{sc.visual}</dd></div>
+              <div><dt className="inline text-xs font-bold text-mute">대사 </dt><dd className="inline">“{sc.narration}”</dd></div>
+              <div><dt className="inline text-xs font-bold text-mute">자막 </dt><dd className="inline"><span className="rounded bg-ink px-2 py-0.5 text-xs font-bold text-cream">{sc.overlay}</span></dd></div>
+            </dl>
+          </li>
+        ))}
+      </ol>
+      <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl bg-cream p-4">
+          <dt className="text-xs font-bold text-mute">다시 보게 만드는 루프</dt>
+          <dd className="mt-1.5 text-sm leading-relaxed">{sh.loop}</dd>
+        </div>
+        <div className="rounded-xl bg-forest-soft p-4">
+          <dt className="text-xs font-bold text-forest">고정 댓글</dt>
+          <dd className="mt-1.5 text-sm leading-relaxed">{sh.pinnedComment}</dd>
+        </div>
+      </dl>
+      <p className="mt-5 border-t border-line pt-4 text-xs leading-relaxed text-mute">
+        촬영용 대본입니다. 영상 자체는 만들지 않습니다. 같은 대본을 유튜브 쇼츠, 인스타그램 릴스, 틱톡에 함께 쓸 수 있고, 업로드할 때 유료 광고 포함 표시를 설정해 주세요.
+      </p>
+    </Panel>
+  );
+}
+
+function SearchTab({ channels }: { channels: Channels }) {
+  const ads = channels.searchAds;
+  const text = `[키워드]\n${ads.keywords.join("\n")}\n\n[제외 키워드]\n${ads.negativeKeywords.join("\n")}\n\n${ads.ads.map((a, i) => `[광고 ${i + 1}]\n제목: ${a.headline}\n설명: ${a.description}`).join("\n\n")}\n\n[서브링크]\n${ads.sitelinks.join(" / ")}`;
+  return (
+    <Panel title="검색광고(네이버·구글)" action={<CopyButton label="소재 복사" getData={() => ({ text })} />}>
+      <ul className="space-y-3">
+        {ads.ads.map((a, i) => (
+          <li key={i} className="rounded-xl border border-line bg-white p-4">
+            <p className="text-xs text-mute"><span className="mr-1.5 rounded border border-line px-1 font-bold">광고</span>검색 결과 미리보기 {i + 1}</p>
+            <p className="mt-1.5 text-base font-bold text-[#1a4fb5]">{a.headline}<Count text={a.headline} max={LIMITS.adHeadline} /></p>
+            <p className="mt-0.5 text-sm leading-relaxed">{a.description}<Count text={a.description} max={LIMITS.adDescription} /></p>
+            <p className="mt-2 text-xs text-[#1a4fb5]">{ads.sitelinks.join(" · ")}</p>
+          </li>
+        ))}
+      </ul>
+      <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl bg-forest-soft p-4">
+          <dt className="text-xs font-bold text-forest">구매 의도 키워드</dt>
+          <dd className="mt-2 flex flex-wrap gap-1.5">{ads.keywords.map((k) => <Badge key={k} tone="solid">{k}</Badge>)}</dd>
+        </div>
+        <div className="rounded-xl bg-cream p-4">
+          <dt className="text-xs font-bold text-mute">제외 키워드</dt>
+          <dd className="mt-2 flex flex-wrap gap-1.5">{ads.negativeKeywords.map((k) => <Badge key={k}>{k}</Badge>)}</dd>
+        </div>
+      </dl>
+      <p className="mt-5 border-t border-line pt-4 text-xs leading-relaxed text-mute">
+        제목 15자·설명 45자 기준으로 검사합니다. 집행 전에 전환 추적을 먼저 설정하고, 광고마다 메시지가 일치하는 전용 랜딩 페이지를 연결하세요. 브랜드 검색어는 별도 캠페인으로 방어하고, 입찰가와 요일·시간대 조정은 광고 관리자에서 직접 설정합니다.
+      </p>
+    </Panel>
   );
 }

@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
   // Card PNG routes read font files with fs at runtime; make sure Vercel bundles them.
   outputFileTracingIncludes: {
     "/api/runs/[id]/cards/[n]": ["./src/assets/fonts/*.otf"],
+    "/api/runs/[id]/banners/[n]": ["./src/assets/fonts/*.otf"],
   },
   serverExternalPackages: ["xlsx"],
   turbopack: {

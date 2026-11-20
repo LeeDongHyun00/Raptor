@@ -1,5 +1,5 @@
 import type { Blog, Guideline, MaterialKind, Run, Workspace } from "../types";
-import { demoBlog, demoCards, demoPlan, demoReviewMissions, demoRevise, demoTopicIndex, sampleNews, sampleTrends } from "../demo";
+import { demoBlog, demoCards, demoChannels, demoPlan, demoReviewMissions, demoRevise, demoTopicIndex, sampleNews, sampleTrends } from "../demo";
 import { demoScreenSvg, seedWorkspace } from "../seed";
 import { newRun, runPipeline } from "../pipelineCore";
 import { blogDocumentHtml } from "../blogHtml";
@@ -109,6 +109,7 @@ export async function startRun(): Promise<string> {
     planTopic: async ({ usedTopics }) => demoPlan(usedTopics),
     writeBlog: async (_ws, plan) => demoBlog(plan),
     writeCards: async (ws, plan) => demoCards(plan, ws),
+    writeChannels: async ({ ws, plan }) => demoChannels(plan, ws),
     reviewMissions: async (g, blog) => demoReviewMissions(g, blog),
     reviseBlog: async ({ plan, blog, sectionIndexes }) => demoRevise(plan, blog, sectionIndexes),
   });
@@ -172,17 +173,25 @@ export function cardUrl(run: Run, index: number, download = false): string {
   return `${BASE}/api/runs/${run.id}/cards/${index}${download ? "?download" : ""}`;
 }
 
+export function bannerUrl(run: Run, index: number, download = false): string {
+  if (isStaticDemo) return `${BASE}/demo-cards/${demoTopicIndex(run.plan?.topic ?? "")}/banner-${index}.png`;
+  return `${BASE}/api/runs/${run.id}/banners/${index}${download ? "?download" : ""}`;
+}
+
 export function blogExportUrl(run: Run): string | null {
   return isStaticDemo ? null : `${BASE}/api/runs/${run.id}/blog`;
 }
 
 /** Client-side HTML export, used where there is no server route to build the file. */
 export function downloadBlogHtml(run: Run, blog: Blog, disclosure: string) {
-  const html = blogDocumentHtml(disclosure, blog, (id) => (demoScreenSvg(id) ? assetUrl(id) : null));
+  downloadHtml(`blog-${run.id}.html`, blogDocumentHtml(disclosure, blog, (id) => (demoScreenSvg(id) ? assetUrl(id) : null)));
+}
+
+export function downloadHtml(filename: string, html: string) {
   const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
   const a = document.createElement("a");
   a.href = url;
-  a.download = `blog-${run.id}.html`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
 }

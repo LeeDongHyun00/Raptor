@@ -28,7 +28,12 @@ for (let topic = 0; ; topic++) {
     if (!res.ok) throw new Error(`card ${topic}/${n}: HTTP ${res.status}`);
     await writeFile(new URL(`${n}.png`, dir), Buffer.from(await res.arrayBuffer()));
   }
-  console.log(`topic ${topic}: ${run.cards.slides.length} cards — ${run.plan.topic}`);
+  for (let n = 0; n < run.channels.kakao.length; n++) {
+    const res = await fetch(`${base}/api/runs/${id}/banners/${n}`);
+    if (!res.ok) throw new Error(`banner ${topic}/${n}: HTTP ${res.status}`);
+    await writeFile(new URL(`banner-${n}.png`, dir), Buffer.from(await res.arrayBuffer()));
+  }
+  console.log(`topic ${topic}: ${run.cards.slides.length} cards, ${run.channels.kakao.length} banners — ${run.plan.topic}`);
 }
 
 await json("/api/runs", { method: "DELETE" });

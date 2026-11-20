@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { getRun, getWorkspace } from "@/lib/client/api";
 import { useLoad } from "@/lib/client/useLoad";
-import { adDisclosure, AD_HASHTAG } from "@/lib/review";
+import { adDisclosure, AD_HASHTAG, emailFooter } from "@/lib/review";
 import { RunView } from "../RunView";
 import { Loading, btn } from "../ui";
 
@@ -30,6 +30,7 @@ export function RunScreen() {
       initial={data.run}
       disclosure={adDisclosure(data.ws)}
       adHashtag={AD_HASHTAG}
+      emailFooter={emailFooter(data.ws)}
       differentiators={data.ws.differentiators.map((d) => ({ id: d.id, title: d.title }))}
     />
   );

@@ -1,26 +1,11 @@
 import { ImageResponse } from "next/og";
-import { promises as fs } from "fs";
-import path from "path";
 import { getAsset, getRun, getWorkspace } from "@/lib/store";
+import { loadFonts } from "@/lib/ogFonts";
 
 const W = 1080;
 const H = 1350; // Instagram 4:5 portrait
 
 const C = { ink: "#14231C", green: "#1F4D3A", cream: "#F6F1E7", amber: "#E8A33D", line: "#D9D2C3", mute: "#5F6B63" };
-
-let fontsPromise: Promise<{ name: string; data: Buffer; weight: 400 | 700 | 800; style: "normal" }[]> | null = null;
-function loadFonts() {
-  // Satori needs raw font bytes; Korean glyphs come from the bundled Pretendard files.
-  fontsPromise ??= Promise.all(
-    ([["Regular", 400], ["Bold", 700], ["ExtraBold", 800]] as const).map(async ([file, weight]) => ({
-      name: "Pretendard",
-      data: await fs.readFile(path.join(process.cwd(), "src/assets/fonts", `Pretendard-${file}.otf`)),
-      weight,
-      style: "normal" as const,
-    })),
-  );
-  return fontsPromise;
-}
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string; n: string }> }) {
   const { id, n } = await params;

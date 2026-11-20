@@ -1,5 +1,5 @@
-import type { Blog, BlogSection, CardNews, Guideline, Material, MissionCheck, NewsItem, Plan, Run, TrendItem, Workspace } from "./types";
-import { buildReview, collectProblems } from "./review";
+import type { Blog, BlogSection, CardNews, ChannelId, Channels, Guideline, Material, MissionCheck, NewsItem, Plan, Run, TrendItem, Workspace } from "./types";
+import { CHANNEL_LABEL, buildReview, channelProblems, collectProblems } from "./review";
 
 /**
  * Environment-independent pipeline: the server wires it to Claude, Naver and the
@@ -20,6 +20,10 @@ export interface PipelineDeps {
   planTopic(args: { ws: Workspace; trends: TrendItem[]; news: NewsItem[]; usedTopics: string[] }): Promise<Plan>;
   writeBlog(ws: Workspace, plan: Plan, shots: Material[]): Promise<Blog>;
   writeCards(ws: Workspace, plan: Plan, shots: Material[]): Promise<CardNews>;
+  /** Writes the given channels (all four when `only` is omitted); `notes` carry review failures to fix. */
+  writeChannels(args: {
+    ws: Workspace; plan: Plan; only?: ChannelId[]; notes?: Partial<Record<ChannelId, string[]>>;
+  }): Promise<Partial<Channels>>;
   reviewMissions(guideline: Guideline, blog: Blog): Promise<MissionCheck[]>;
   reviseBlog(args: {
     ws: Workspace; plan: Plan; blog: Blog; shots: Material[]; reasons: string[]; sectionIndexes: number[];
@@ -86,16 +90,31 @@ export async function runPipeline(runId: string, deps: PipelineDeps): Promise<vo
       fresh.materials = fresh.materials.map((m) => (described[m.id] ? { ...m, description: described[m.id] } : m));
       await deps.saveWorkspace(fresh);
     }
-    const [draft, cards] = await Promise.all([deps.writeBlog(ws, plan, shots), deps.writeCards(ws, plan, shots)]);
+    const [draft, cards, firstChannels] = await Promise.all([
+      deps.writeBlog(ws, plan, shots), deps.writeCards(ws, plan, shots), deps.writeChannels({ ws, plan }),
+    ]);
     let blog = draft;
-    await log(STEPS[2], `블로그 글(섹션 ${blog.sections.length}개)과 카드뉴스(${cards.slides.length}장)를 만들었습니다.`, (r) => { r.blog = blog; r.cards = cards; });
+    let channels = firstChannels as Channels;
+    await log(STEPS[2], `하나의 기획으로 6개 채널 소재를 만들었습니다: 블로그 글(섹션 ${blog.sections.length}개), 카드뉴스(${cards.slides.length}장), 이메일, 카카오톡 배너(${channels.kakao.length}개), 쇼츠 대본, 검색광고(${channels.searchAds.ads.length}개).`, (r) => { r.blog = blog; r.cards = cards; r.channels = channels; });
 
     // 4. Review: keywords in code, missions by AI
-    let review = buildReview(ws.guideline, blog, cards, await deps.reviewMissions(ws.guideline, blog));
+    let review = buildReview(ws.guideline, blog, cards, await deps.reviewMissions(ws.guideline, blog), channels);
     const firstReview = review;
     await log(STEPS[3], `가이드라인 ${review.total}개 항목 중 ${review.passed}개를 충족했습니다.`, (r) => { r.review = review; r.firstReview = firstReview; });
 
-    // 5. Fix only what failed
+    // 5. Fix only what failed — first the channels that broke a format rule, then blog sections
+    const notes = channelProblems(review);
+    const failedChannels = Object.keys(notes) as ChannelId[];
+    if (failedChannels.length) {
+      const redo = await deps.writeChannels({ ws, plan, only: failedChannels, notes });
+      channels = { ...channels, ...redo };
+      const missions = review.missionChecks;
+      review = buildReview(ws.guideline, blog, cards, missions, channels);
+      await log(STEPS[4], `형식 규칙을 지키지 못한 ${failedChannels.map((c) => CHANNEL_LABEL[c]).join(", ")}만 다시 만들었습니다. 재검수 결과 ${review.passed}/${review.total}.`, (r) => {
+        r.channels = channels; r.review = review;
+        r.revisions.push({ round: 0, sectionIndexes: [], reasons: Object.values(notes).flat(), channels: failedChannels });
+      });
+    }
     for (let round = 1; round <= MAX_FIX_ROUNDS && review.passed < review.total; round++) {
       const { reasons, sectionIndexes } = collectProblems(review, blog);
       if (sectionIndexes.length === 0) break;
@@ -104,7 +123,7 @@ export async function runPipeline(runId: string, deps: PipelineDeps): Promise<vo
       const sections = [...blog.sections];
       for (const f of fixes) sections[f.index] = f.section;
       blog = { ...blog, sections };
-      review = buildReview(ws.guideline, blog, cards, await deps.reviewMissions(ws.guideline, blog));
+      review = buildReview(ws.guideline, blog, cards, await deps.reviewMissions(ws.guideline, blog), channels);
       const applied = fixes.map((f) => f.index);
       await log(STEPS[4], `미충족 ${reasons.length}건을 해결하도록 섹션 ${applied.map((i) => i + 1).join(", ")}번만 다시 썼습니다. 재검수 결과 ${review.passed}/${review.total}.`, (r) => {
         r.blog = blog; r.review = review; r.revisions.push({ round, sectionIndexes: applied, reasons });

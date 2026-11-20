@@ -1,6 +1,6 @@
 import type { Run } from "./types";
 import { addRun, getRuns, getWorkspace, saveWorkspace, updateRun } from "./store";
-import { aiMode, describeScreenshots, planTopic, reviewMissions, reviseBlog, writeBlog, writeCards } from "./ai";
+import { aiMode, describeScreenshots, planTopic, reviewMissions, reviseBlog, writeBlog, writeCards, writeChannels } from "./ai";
 import { collectTrends, trendMode } from "./trends";
 import { newRun, runPipeline } from "./pipelineCore";
 
@@ -15,6 +15,6 @@ export async function createRun(trigger: Run["trigger"]): Promise<Run> {
 export function executeRun(runId: string): Promise<void> {
   return runPipeline(runId, {
     getWorkspace, saveWorkspace, getRuns, updateRun, collectTrends,
-    describeScreenshots, planTopic, writeBlog, writeCards, reviewMissions, reviseBlog,
+    describeScreenshots, planTopic, writeBlog, writeCards, writeChannels, reviewMissions, reviseBlog,
   });
 }

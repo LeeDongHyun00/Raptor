@@ -67,6 +67,8 @@ export interface Plan {
   angle: string;
   reason: string;
   differentiatorIds: string[];
+  /** The one message every channel repeats in its own format. */
+  coreMessage?: string;
 }
 
 export interface BlogSection {
@@ -96,6 +98,54 @@ export interface CardNews {
   hashtags: string[];
 }
 
+export interface EmailContent {
+  /** A/B subject candidates, without the legal "(광고)" prefix (added by code). */
+  subjects: string[];
+  preheader: string;
+  greeting: string;
+  paragraphs: string[];
+  /** Exactly one call to action per mail. */
+  ctaLabel: string;
+}
+
+export interface KakaoBanner {
+  copy: string;
+  sub: string;
+  cta: string;
+  hook: "숫자" | "손실 회피" | "질문";
+  target: string;
+}
+
+export interface ShortsScript {
+  title: string;
+  scenes: { seconds: number; visual: string; narration: string; overlay: string }[];
+  loop: string;
+  pinnedComment: string;
+}
+
+export interface SearchAds {
+  keywords: string[];
+  negativeKeywords: string[];
+  ads: { headline: string; description: string }[];
+  sitelinks: string[];
+}
+
+export interface Channels {
+  email: EmailContent;
+  kakao: KakaoBanner[];
+  shorts: ShortsScript;
+  searchAds: SearchAds;
+}
+
+export type ChannelId = keyof Channels;
+
+export interface ChannelCheck {
+  channel: ChannelId;
+  label: string;
+  pass: boolean;
+  detail: string;
+}
+
 export interface KeywordCheck {
   keyword: string;
   minCount: number;
@@ -118,6 +168,8 @@ export interface Review {
   minChars: number;
   adDisclosure: boolean;
   cardCountOk: boolean;
+  /** Format rules of the extra channels (lengths, legal marks); absent on runs made before they existed. */
+  channelChecks?: ChannelCheck[];
   passed: number;
   total: number;
 }
@@ -144,10 +196,11 @@ export interface Run {
   plan?: Plan;
   blog?: Blog;
   cards?: CardNews;
+  channels?: Channels;
   review?: Review;
   /** Review result of the first draft, kept to show what the auto-fix changed. */
   firstReview?: Review;
-  revisions: { round: number; sectionIndexes: number[]; reasons: string[] }[];
+  revisions: { round: number; sectionIndexes: number[]; reasons: string[]; channels?: ChannelId[] }[];
   decidedAt?: string;
   error?: string;
 }

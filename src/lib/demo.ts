@@ -1,4 +1,4 @@
-import type { Blog, BlogSection, CardNews, Guideline, MissionCheck, NewsItem, Plan, TrendItem, Workspace } from "./types";
+import type { Blog, BlogSection, CardNews, Channels, Guideline, MissionCheck, NewsItem, Plan, TrendItem, Workspace } from "./types";
 
 /**
  * Canned responses used when no Anthropic API key is configured, so the whole
@@ -30,6 +30,12 @@ interface DemoTopic {
   closingDraft: string[];
   closingFixed: string[];
   cardProblem: { title: string; body: string };
+  coreMessage: string;
+  email: { subjects: string[]; preheader: string; story: string[] };
+  kakao: { copy: string; sub: string; cta: string; hook: "숫자" | "손실 회피" | "질문"; target: string }[];
+  shorts: { title: string; hookLine: string; hookOverlay: string; result: string };
+  adHeadline: string;
+  adKeyword: string;
 }
 
 const TOPICS: DemoTopic[] = [
@@ -70,6 +76,23 @@ const TOPICS: DemoTopic[] = [
       "우리 팀에 맞는 도입 방법이 궁금하다면 비즈레코딩 도입 문의를 남겨 주세요. 담당자가 현재 업무 방식에 맞춰 안내해 드립니다.",
     ],
     cardProblem: { title: "AI 도입, 어디서부터?", body: "큰 시스템은 부담스럽고 손 놓기엔 불안하다면, 매일 반복되는 통화 기록부터 시작하세요." },
+    coreMessage: "통화가 끝나면 기록·정리·요약은 이미 끝나 있습니다.",
+    email: {
+      subjects: ["AI 업무자동화, 통화 정리부터 맡겨 보세요", "통화 끝나고 메모, 아직 직접 하세요?"],
+      preheader: "녹음, 고객 기록, 요약이 한 번에 이어집니다",
+      story: [
+        "AI를 도입하라는 이야기는 많은데, 막상 어디서부터 시작할지는 아무도 알려 주지 않습니다.",
+        "저희가 만난 영업·상담팀들은 의외로 가까운 곳에서 답을 찾았습니다. 매일 반복되는 통화 메모와 보고입니다.",
+      ],
+    },
+    kakao: [
+      { copy: "아직도 통화 내용 손으로 적으세요?", sub: "통화가 끝나면 AI가 정리합니다", cta: "확인하기", hook: "손실 회피", target: "영업·상담 실무자" },
+      { copy: "우리 팀 통화 기록, 어디에 있나요?", sub: "고객별로 자동 정리되는 통화녹음", cta: "알아보기", hook: "질문", target: "팀장·관리자" },
+      { copy: "통화 솔루션 3가지를 하나로", sub: "통화녹음·CRM·AI 리포트 비즈레코딩", cta: "살펴보기", hook: "숫자", target: "솔루션 도입 검토자" },
+    ],
+    shorts: { title: "AI 자동화, 통화 메모부터 없애기", hookLine: "AI 도입하라는데, 뭐부터 하죠?", hookOverlay: "AI 도입, 어디서부터?", result: "통화 정리는 AI에게, 나는 다음 고객에게." },
+    adHeadline: "통화 정리, AI에 맡기세요",
+    adKeyword: "AI 통화 요약",
   },
   {
     plan: {
@@ -108,6 +131,23 @@ const TOPICS: DemoTopic[] = [
       "통화 후 15분을 되찾고 싶다면 비즈레코딩 도입 문의를 남겨 주세요. 팀 규모와 업무 방식에 맞춰 상담해 드립니다.",
     ],
     cardProblem: { title: "통화는 5분, 정리는 15분", body: "메모하고, 엑셀에 옮기고, 보고하고. 영업 시간을 잡아먹는 건 통화 ‘후’의 일입니다." },
+    coreMessage: "통화 후 15분의 정리 업무를 시스템이 대신합니다.",
+    email: {
+      subjects: ["통화는 5분인데, 정리는 왜 15분일까요", "영업 생산성, 통화 ‘후’에서 갈립니다"],
+      preheader: "메모·입력·보고를 시스템이 대신합니다",
+      story: [
+        "고객과의 통화는 금방 끝나는데, 메모하고 엑셀에 옮기고 보고하다 보면 하루가 갑니다.",
+        "영업 생산성이 오르지 않는 이유는 통화를 덜 해서가 아니라, 통화가 끝난 뒤의 일이 너무 많기 때문입니다.",
+      ],
+    },
+    kakao: [
+      { copy: "통화보다 정리가 더 오래 걸린다면", sub: "통화 후 기록을 자동으로", cta: "확인하기", hook: "손실 회피", target: "영업 담당자" },
+      { copy: "오늘 통화, 몇 건이나 기록했나요?", sub: "받아 적지 않아도 남는 통화녹음", cta: "알아보기", hook: "질문", target: "영업팀장" },
+      { copy: "통화 솔루션 3가지를 하나로", sub: "통화녹음·CRM·AI 리포트 비즈레코딩", cta: "살펴보기", hook: "숫자", target: "솔루션 도입 검토자" },
+    ],
+    shorts: { title: "통화 후 정리, 안 해도 되는 이유", hookLine: "통화는 금방 끝났는데, 정리가 안 끝나요.", hookOverlay: "통화보다 긴 통화 정리", result: "정리는 시스템이, 나는 다음 통화로." },
+    adHeadline: "통화 후 기록 자동화",
+    adKeyword: "영업 관리 프로그램 추천",
   },
   {
     plan: {
@@ -146,6 +186,23 @@ const TOPICS: DemoTopic[] = [
       "우리 팀의 인수인계 고민을 줄이고 싶다면 비즈레코딩 도입 문의를 남겨 주세요. 현재 상담 방식에 맞는 활용 방법을 안내해 드립니다.",
     ],
     cardProblem: { title: "“지난번에 말씀드렸는데요”", body: "담당자가 바뀔 때마다 고객이 같은 설명을 반복한다면, 기록이 개인에게만 남아 있기 때문입니다." },
+    coreMessage: "통화 이력이 팀에 남아, 담당자가 바뀌어도 대화가 이어집니다.",
+    email: {
+      subjects: ["“지난번에 말씀드렸는데요” 줄이는 법", "담당자가 바뀌어도 이어지는 고객 응대"],
+      preheader: "통화 이력을 팀의 기록으로 남기세요",
+      story: [
+        "담당자가 바뀌면 고객은 같은 이야기를 처음부터 다시 해야 합니다. 그때마다 신뢰는 조금씩 깎입니다.",
+        "문제는 사람이 아니라, 상담 내용이 개인의 기억과 수첩에만 남는 구조입니다.",
+      ],
+    },
+    kakao: [
+      { copy: "담당자 바뀌면 고객도 떠납니다", sub: "통화 이력을 팀의 기록으로", cta: "확인하기", hook: "손실 회피", target: "CS·영업 관리자" },
+      { copy: "지난 통화 내용, 바로 찾아지나요?", sub: "고객 카드에 남는 통화 타임라인", cta: "알아보기", hook: "질문", target: "상담 실무자" },
+      { copy: "통화 솔루션 3가지를 하나로", sub: "통화녹음·CRM·AI 리포트 비즈레코딩", cta: "살펴보기", hook: "숫자", target: "솔루션 도입 검토자" },
+    ],
+    shorts: { title: "담당자가 바뀌어도 응대가 이어지는 팀", hookLine: "“지난번에 다 말씀드렸는데요.”", hookOverlay: "고객이 가장 싫어하는 순간", result: "누가 받아도, 대화는 이어집니다." },
+    adHeadline: "담당자 바뀌어도 이력 그대로",
+    adKeyword: "고객 상담 이력 관리",
   },
 ];
 
@@ -191,7 +248,7 @@ export function demoPlan(usedTopics: string[]): Plan {
       `데모 모드의 샘플 주제 ${TOPICS.length}개를 모두 사용했습니다. 이전에 다룬 주제는 다시 쓰지 않으므로, 대시보드에서 이력을 초기화하거나 ANTHROPIC_API_KEY를 설정해 실제 생성으로 전환하세요.`,
     );
   }
-  return { ...next.plan, differentiatorIds: Object.keys(FEATURE) };
+  return { ...next.plan, coreMessage: next.coreMessage, differentiatorIds: Object.keys(FEATURE) };
 }
 
 export function demoBlog(plan: Plan): Blog {
@@ -237,6 +294,49 @@ export function demoCards(plan: Plan, ws: Workspace): CardNews {
     ],
     caption: `${t.intro.paragraphs[0]}\n\n${ws.product.name}은 통화녹음부터 CRM, AI 리포트까지 한 번에 이어 줍니다. 자세한 내용은 프로필 링크에서 확인하세요.`,
     hashtags: ["비즈레코딩", "티링크", "통화녹음", "CRM", "AI리포트", plan.trendKeyword.replace(/\s/g, ""), "업무자동화", "B2B솔루션"],
+  };
+}
+
+/** Same plan, four more formats: email, KakaoTalk banner, short-form video script, search ads. */
+export function demoChannels(plan: Plan, ws: Workspace): Channels {
+  const t = topicFor(plan);
+  const name = ws.product.name;
+  return {
+    email: {
+      subjects: t.email.subjects,
+      preheader: t.email.preheader,
+      greeting: "{{이름}}님, 안녕하세요.",
+      paragraphs: [
+        ...t.email.story,
+        `${name}은 업무 통화를 자동으로 녹음해 고객별로 정리하고, AI 리포트로 요약과 다음 할 일까지 정리해 드립니다. ${t.coreMessage}`,
+        "우리 팀 업무 방식에 맞는 활용 방법을 담당자가 안내해 드립니다.",
+      ],
+      ctaLabel: "도입 상담 신청하기",
+    },
+    kakao: t.kakao,
+    shorts: {
+      title: t.shorts.title,
+      scenes: [
+        { seconds: 2, visual: "통화를 끊자마자 수첩을 찾는 직원의 1인칭 시점", narration: t.shorts.hookLine, overlay: t.shorts.hookOverlay },
+        { seconds: 5, visual: "메모, 엑셀, 메신저 보고 창을 오가는 화면을 빠르게 교차", narration: "메모하고, 옮겨 적고, 보고하고. 통화보다 정리가 더 깁니다.", overlay: "메모 → 엑셀 → 보고" },
+        { seconds: 6, visual: `${name} 통화 목록 화면 녹화: 통화가 끝나자 목록에 바로 추가됨`, narration: `${name}은 통화가 끝나면 녹음이 고객별로 알아서 정리돼요.`, overlay: "통화녹음 자동 정리" },
+        { seconds: 6, visual: "AI 리포트 화면 녹화: 요약과 다음 할 일이 표시됨", narration: "AI 리포트가 요약이랑 다음 할 일까지 써 줍니다.", overlay: "AI가 요약 + 할 일 정리" },
+        { seconds: 4, visual: "직원이 수첩을 덮고 다음 전화를 받는 모습", narration: t.shorts.result, overlay: t.shorts.result },
+        { seconds: 2, visual: "첫 장면과 같은 구도로 전화벨이 다시 울림", narration: "그런데 다음 통화는요?", overlay: "다음 통화는?" },
+      ],
+      loop: "마지막 전화벨 장면이 첫 장면의 통화 종료 직후와 같은 구도로 이어져, 자연스럽게 처음부터 다시 보게 됩니다.",
+      pinnedComment: `통화 정리에 쓰는 시간을 줄이고 싶다면 → 프로필 링크에서 ${name} 도입 문의를 남겨 주세요.`,
+    },
+    searchAds: {
+      keywords: ["업무용 통화녹음", "통화녹음 프로그램 추천", "통화녹음 CRM", "상담 녹취 솔루션 가격", t.adKeyword],
+      negativeKeywords: ["무료 다운로드", "개인용", "아이폰 통화녹음", "녹음기"],
+      ads: [
+        { headline: `업무용 통화녹음 ${name}`, description: "통화가 끝나면 녹음이 고객별로 자동 정리됩니다. 도입 상담 신청." },
+        { headline: t.adHeadline, description: "통화녹음·CRM·AI 리포트를 하나로. 통화 후 업무를 줄이세요." },
+        { headline: "통화녹음부터 AI 리포트까지", description: "AI가 통화를 요약하고 다음 할 일을 정리합니다. 지금 문의하세요." },
+      ],
+      sitelinks: ["기능 소개", "AI 리포트", "CRM 연동", "도입 문의"],
+    },
   };
 }
 
