@@ -38,6 +38,31 @@ export interface Differentiator {
   evidence: Evidence[];
 }
 
+export type VocCategory = "도입 문의" | "기능 질문" | "도입 우려" | "불만·장애";
+
+export interface VocItem {
+  id: string;
+  /** Customer question rewritten in general terms: no names, numbers or company names. The only form allowed in public copy. */
+  question: string;
+  category: VocCategory;
+  /** Calls in the analyzed period that raised this question. Internal screens only. */
+  count: number;
+  /** Up to two anonymized quotes for internal checking. Never used in public copy. */
+  quotes: string[];
+  /** Differentiators that can answer the question; empty when the documents cannot answer it. */
+  differentiatorIds: string[];
+  /** One-line angle for content answering this question. */
+  angle: string;
+}
+
+export interface VocBoard {
+  source: string;
+  period?: string;
+  analyzedAt: string;
+  mode: "live" | "sample";
+  items: VocItem[];
+}
+
 export interface Workspace {
   product: { name: string; company: string; summary: string };
   materials: Material[];
@@ -45,6 +70,8 @@ export interface Workspace {
   differentiators: Differentiator[];
   analyzedAt?: string;
   analysisMode?: "live" | "demo";
+  /** Customer questions mined from call summaries; without it planning uses trends only. */
+  voc?: VocBoard;
 }
 
 export interface TrendItem {
@@ -69,6 +96,9 @@ export interface Plan {
   differentiatorIds: string[];
   /** The one message every channel repeats in its own format. */
   coreMessage?: string;
+  /** The customer question this content answers, when planning started from VOC. */
+  vocId?: string;
+  customerQuestion?: string;
 }
 
 export interface BlogSection {
@@ -159,6 +189,16 @@ export interface MissionCheck {
   note: string;
   /** Blog section indexes that need rewriting when the mission fails. */
   sectionIndexes: number[];
+  /** The failure sits in the title, which section rewrites cannot reach. */
+  fixTitle?: boolean;
+}
+
+export interface PrivacyCheck {
+  pass: boolean;
+  detail: string;
+  /** Where the problem sits, so only those parts are regenerated. */
+  blogSections: number[];
+  channels: ChannelId[];
 }
 
 export interface Review {
@@ -170,6 +210,8 @@ export interface Review {
   cardCountOk: boolean;
   /** Format rules of the extra channels (lengths, legal marks); absent on runs made before they existed. */
   channelChecks?: ChannelCheck[];
+  /** No personal data or internal call quotes in any channel; absent on runs made before the check existed. */
+  privacy?: PrivacyCheck;
   passed: number;
   total: number;
 }
@@ -194,13 +236,16 @@ export interface Run {
   trends: TrendItem[];
   news: NewsItem[];
   plan?: Plan;
+  /** Snapshot of the customer question at run time, so re-analyzing VOC later does not rewrite history. */
+  vocItem?: VocItem;
+  vocMode?: "live" | "sample";
   blog?: Blog;
   cards?: CardNews;
   channels?: Channels;
   review?: Review;
   /** Review result of the first draft, kept to show what the auto-fix changed. */
   firstReview?: Review;
-  revisions: { round: number; sectionIndexes: number[]; reasons: string[]; channels?: ChannelId[] }[];
+  revisions: { round: number; sectionIndexes: number[]; reasons: string[]; channels?: ChannelId[]; title?: boolean }[];
   decidedAt?: string;
   error?: string;
 }

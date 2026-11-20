@@ -1,4 +1,5 @@
-import type { Blog, CardNews, ChannelCheck, ChannelId, Channels, Guideline, KeywordCheck, MissionCheck, Review, Workspace } from "./types";
+import type { Blog, CardNews, ChannelCheck, ChannelId, Channels, Guideline, KeywordCheck, MissionCheck, PrivacyCheck, Review, Workspace } from "./types";
+import { containsQuote, findPII } from "./voc";
 
 /** Disclosure text required by the KFTC endorsement guidelines; inserted by code, never left to the model. */
 export function adDisclosure(ws: Workspace): string {
@@ -66,6 +67,9 @@ export function channelProblems(review: Review): Partial<Record<ChannelId, strin
   for (const c of review.channelChecks ?? []) {
     if (!c.pass) (out[c.channel] ??= []).push(`${c.label}: ${c.detail}`);
   }
+  for (const id of review.privacy?.channels ?? []) {
+    (out[id] ??= []).push(`개인정보 노출: ${review.privacy!.detail}. 전화번호·이메일·통화 인용·고객 이름을 빼고 다시 써야 합니다.`);
+  }
   return out;
 }
 
@@ -87,12 +91,56 @@ export function checkKeywords(guideline: Guideline, blog: Blog): KeywordCheck[] 
   });
 }
 
-export function buildReview(guideline: Guideline, blog: Blog, cards: CardNews, missionChecks: MissionCheck[], channels?: Channels): Review {
+const channelText: { [K in ChannelId]: (c: Channels[K]) => string } = {
+  email: (e) => [...e.subjects, e.preheader, e.greeting, ...e.paragraphs, e.ctaLabel].join("\n"),
+  kakao: (k) => k.map((b) => `${b.copy} ${b.sub} ${b.cta}`).join("\n"),
+  shorts: (sh) => [sh.title, ...sh.scenes.flatMap((sc) => [sc.narration, sc.overlay]), sh.pinnedComment].join("\n"),
+  searchAds: (a) => [...a.keywords, ...a.ads.flatMap((x) => [x.headline, x.description]), ...a.sitelinks].join("\n"),
+};
+
+/**
+ * Deterministic privacy gate for everything that will be published: no phone numbers,
+ * emails or resident numbers, and no reuse of the internal call quotes behind the plan.
+ */
+export function checkPrivacy(blog: Blog, cards: CardNews, channels: Channels | undefined, quotes: string[]): PrivacyCheck {
+  const problems: string[] = [];
+  const scan = (text: string, where: string): boolean => {
+    const pii = findPII(text);
+    const quote = containsQuote(text, quotes);
+    if (pii.length) problems.push(`${where}: ${pii.map((p) => `${p.label} “${p.match}”`).join(", ")}`);
+    if (quote) problems.push(`${where}: 내부 확인용 통화 인용이 그대로 쓰였습니다`);
+    return pii.length > 0 || !!quote;
+  };
+  const blogSections: number[] = [];
+  if (scan(blog.title, "블로그 제목")) blogSections.push(0);
+  blog.sections.forEach((s, i) => {
+    if (scan([s.heading, ...s.paragraphs, s.caption ?? ""].join("\n"), `블로그 섹션 ${i + 1}`) && !blogSections.includes(i)) blogSections.push(i);
+  });
+  scan([...cards.slides.flatMap((s) => [s.eyebrow, s.title, s.body]), cards.caption, ...cards.hashtags].join("\n"), "카드뉴스");
+  const bad: ChannelId[] = [];
+  if (channels) {
+    for (const id of Object.keys(channelText) as ChannelId[]) {
+      if (scan((channelText[id] as (c: unknown) => string)(channels[id]), CHANNEL_LABEL[id])) bad.push(id);
+    }
+  }
+  return {
+    pass: problems.length === 0,
+    detail: problems.length ? problems.join(" / ") : "전화번호·이메일·주민번호와 통화 인용이 어느 채널에도 없습니다",
+    blogSections,
+    channels: bad,
+  };
+}
+
+export function buildReview(
+  guideline: Guideline, blog: Blog, cards: CardNews, missionChecks: MissionCheck[], channels?: Channels, vocQuotes: string[] = [],
+): Review {
   const keywordChecks = checkKeywords(guideline, blog);
   const charCount = blog.sections.flatMap((s) => s.paragraphs).join("").replace(/\s/g, "").length;
   const cardCountOk = cards.slides.length >= 6 && cards.slides.length <= 8;
   const channelChecks = channels ? checkChannels(channels) : undefined;
+  const privacy = checkPrivacy(blog, cards, channels, vocQuotes);
   const flags = [
+    privacy.pass,
     ...(channelChecks ?? []).map((c) => c.pass),
     ...keywordChecks.map((k) => k.pass),
     ...missionChecks.map((m) => m.pass),
@@ -108,13 +156,14 @@ export function buildReview(guideline: Guideline, blog: Blog, cards: CardNews, m
     adDisclosure: true,
     cardCountOk,
     channelChecks,
+    privacy,
     passed: flags.filter(Boolean).length,
     total: flags.length,
   };
 }
 
 /** What still needs rewriting, as (reason, section) pairs for the targeted fix step. */
-export function collectProblems(review: Review, blog: Blog): { reasons: string[]; sectionIndexes: number[] } {
+export function collectProblems(review: Review, blog: Blog): { reasons: string[]; sectionIndexes: number[]; fixTitle: boolean } {
   const reasons: string[] = [];
   const indexes = new Set<number>();
   const last = blog.sections.length - 1;
@@ -129,12 +178,17 @@ export function collectProblems(review: Review, blog: Blog): { reasons: string[]
     if (!m.pass) {
       reasons.push(`미션 미충족: ${m.mission} (${m.note})`);
       const valid = m.sectionIndexes.filter((i) => i >= 0 && i <= last);
-      (valid.length ? valid : [last]).forEach((i) => indexes.add(i));
+      // A title-only failure needs no section rewrite unless the reviewer named one.
+      (valid.length ? valid : m.fixTitle ? [] : [last]).forEach((i) => indexes.add(i));
     }
+  }
+  if (review.privacy && review.privacy.blogSections.length) {
+    reasons.push(`개인정보 노출: ${review.privacy.detail}. 전화번호·이메일·통화 인용·고객 이름을 빼고 다시 써야 합니다.`);
+    review.privacy.blogSections.forEach((i) => indexes.add(Math.min(i, last)));
   }
   if (review.charCount < review.minChars) {
     reasons.push(`본문이 공백 제외 ${review.minChars}자 이상이어야 합니다(현재 ${review.charCount}자). 설명을 구체적으로 보강하세요.`);
     indexes.add(Math.min(1, last));
   }
-  return { reasons, sectionIndexes: [...indexes].sort((a, b) => a - b) };
+  return { reasons, sectionIndexes: [...indexes].sort((a, b) => a - b), fixTitle: review.missionChecks.some((m) => !m.pass && m.fixTitle) };
 }

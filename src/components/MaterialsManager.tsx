@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { Guideline, Material, MaterialKind } from "@/lib/types";
-import { assetUrl, isStaticDemo, removeMaterial, saveGuideline, uploadMaterial } from "@/lib/client/api";
+import type { Differentiator, Guideline, Material, MaterialKind, VocBoard } from "@/lib/types";
+import { analyzeVoc, assetUrl, clearVoc, isStaticDemo, removeMaterial, saveGuideline, uploadMaterial } from "@/lib/client/api";
 import { Badge, Panel, btn } from "./ui";
 
 const KINDS: { kind: MaterialKind; title: string; hint: string; accept: string }[] = [
@@ -12,7 +12,9 @@ const KINDS: { kind: MaterialKind; title: string; hint: string; accept: string }
 
 const size = (n: number) => (n > 1048576 ? `${(n / 1048576).toFixed(1)}MB` : n > 0 ? `${Math.max(1, Math.round(n / 1024))}KB` : "");
 
-export function MaterialsManager({ materials, guideline, onChange }: { materials: Material[]; guideline: Guideline; onChange: () => void }) {
+export function MaterialsManager({ materials, guideline, voc, differentiators, aiMode, onChange }: {
+  materials: Material[]; guideline: Guideline; voc?: VocBoard; differentiators: Differentiator[]; aiMode: "live" | "demo"; onChange: () => void;
+}) {
   const [busy, setBusy] = useState<MaterialKind | null>(null);
   const [error, setError] = useState("");
   // Bumped after an Excel import so the editor remounts with the imported values;
@@ -92,6 +94,7 @@ export function MaterialsManager({ materials, guideline, onChange }: { materials
           );
         })}
       </div>
+      <VocCard voc={voc} differentiators={differentiators} aiMode={aiMode} onChange={onChange} />
       <GuidelineEditor
         key={guideVersion}
         guideline={guideline}
@@ -186,6 +189,100 @@ function GuidelineEditor({ guideline, uploadButton, onSaved }: { guideline: Guid
           {state === "error" && <span className="text-bad">저장하지 못했습니다.</span>}
         </span>
       </div>
+    </Panel>
+  );
+}
+
+const vocTone = { "도입 문의": "good", "기능 질문": "neutral", "도입 우려": "warn", "불만·장애": "bad" } as const;
+
+function VocCard({ voc, differentiators, aiMode, onChange }: {
+  voc?: VocBoard; differentiators: Differentiator[]; aiMode: "live" | "demo"; onChange: () => void;
+}) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+  // Without a key (or a server) the analysis cannot read the pasted text, so say so up front.
+  const sampleOnly = isStaticDemo || aiMode === "demo";
+
+  async function run(input: Parameters<typeof analyzeVoc>[0]) {
+    setBusy(true);
+    setError("");
+    try {
+      await analyzeVoc(input);
+      setText("");
+      onChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "분석에 실패했습니다.");
+    }
+    setBusy(false);
+  }
+
+  return (
+    <Panel
+      title="고객 통화 요약 (VOC)"
+      action={voc ? <button className={btn.text} onClick={async () => { await clearVoc().catch(() => undefined); onChange(); }}>질문 목록 지우기</button> : undefined}
+    >
+      <p className="-mt-2 mb-4 text-xs leading-relaxed text-mute">
+        상담 통화 요약을 넣으면 고객이 자주 묻는 질문을 뽑아, 검색어 트렌드와 함께 다음 콘텐츠의 주제로 씁니다. 통화마다 빈 줄로 구분해 붙여 넣거나 CRM 상담 이력 파일(TXT, CSV, XLSX)을 올리세요.
+      </p>
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+        <div>
+          <label className="block">
+            <span className="sr-only">통화 요약 붙여넣기</span>
+            <textarea
+              className={`${input} min-h-40`} rows={7} value={text} disabled={busy}
+              placeholder={"통화 요약을 붙여 넣으세요.\n\n통화와 통화 사이는 빈 줄로 구분합니다."}
+              onChange={(e) => setText(e.target.value)}
+            />
+          </label>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button className={btn.primary} disabled={busy || !text.trim()} onClick={() => run({ text })}>{busy ? "분석하는 중…" : "분석하기"}</button>
+            <input ref={fileRef} type="file" accept=".txt,.csv,.xlsx,.xls" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) run({ file: f }); }} />
+            <button className={btn.ghost} disabled={busy || isStaticDemo} title={isStaticDemo ? "서버 배포 버전에서 사용할 수 있습니다" : undefined} onClick={() => fileRef.current?.click()}>파일 올리기</button>
+            <button className={btn.ghost} disabled={busy} onClick={() => run({ sample: true })}>샘플 통화 요약으로 분석해 보기</button>
+          </div>
+          {sampleOnly && (
+            <p className="mt-3 text-xs leading-relaxed text-[#8a5a0b]">
+              {isStaticDemo ? "GitHub Pages 데모" : "API 키가 없는 데모 모드"}에서는 입력한 내용과 관계없이 준비된 샘플 분석 결과를 보여 줍니다.
+            </p>
+          )}
+          {error && <p role="alert" className="mt-3 text-xs text-bad">{error}</p>}
+        </div>
+        <div>
+          {voc ? (
+            <>
+              <p className="flex flex-wrap items-center gap-2 text-xs text-mute">
+                {voc.mode === "sample" && <Badge tone="warn">[샘플]</Badge>}
+                <span>{voc.source}{voc.period ? ` · ${voc.period}` : ""}</span>
+              </p>
+              <ol className="mt-3 space-y-2.5">
+                {voc.items.map((v) => (
+                  <li key={v.id} className="rounded-xl border border-line bg-cream/40 p-3">
+                    <p className="text-sm font-bold leading-snug">{v.question}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {voc.mode === "sample" && <Badge tone="warn">[샘플]</Badge>}
+                      <Badge tone={vocTone[v.category]}>{v.category}</Badge>
+                      <Badge>통화 {v.count}건</Badge>
+                      {v.differentiatorIds.map((id) => (
+                        <Badge key={id} tone="solid">{differentiators.find((d) => d.id === id)?.title ?? id}</Badge>
+                      ))}
+                      {v.differentiatorIds.length === 0 && <span className="text-xs text-mute">문서로 답할 수 없어 주제 후보에서 제외</span>}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </>
+          ) : (
+            <p className="rounded-xl bg-cream px-4 py-10 text-center text-sm leading-relaxed text-mute">
+              아직 분석한 고객 질문이 없습니다. 이 상태에서는 검색어 트렌드만으로 주제를 정합니다.
+            </p>
+          )}
+        </div>
+      </div>
+      <p className="mt-5 border-t border-line pt-4 text-xs leading-relaxed text-mute">
+        통화 원문은 저장하지 않습니다. 번호·이메일은 분석 전에 가리고, 질문 유형과 빈도만 저장합니다. 고객 통화 내용을 마케팅에 활용하기 전에 개인정보 처리방침의 이용 범위를 확인하세요.
+      </p>
     </Panel>
   );
 }

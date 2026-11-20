@@ -72,3 +72,20 @@ export function parseGuidelineXlsx(buf: Buffer, source: string): Guideline {
   }
   return g;
 }
+
+/** Rows of a CRM consultation export: the text of the 내용/요약/상담 columns, one entry per row. */
+export function extractSummariesXlsx(buf: Buffer): string[] {
+  const wb = XLSX.read(buf, { type: "buffer" });
+  const out: string[] = [];
+  for (const name of wb.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, blankrows: false });
+    const headerAt = rows.findIndex((r) => r.some((c) => /내용|요약|상담/.test(String(c ?? ""))));
+    if (headerAt < 0) continue;
+    const cols = rows[headerAt].map((c, i) => (/내용|요약|상담/.test(String(c ?? "")) ? i : -1)).filter((i) => i >= 0);
+    for (const row of rows.slice(headerAt + 1)) {
+      const text = cols.map((i) => String(row[i] ?? "").trim()).filter(Boolean).join(" / ");
+      if (text.length >= 5) out.push(text);
+    }
+  }
+  return out;
+}

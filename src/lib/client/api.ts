@@ -1,6 +1,6 @@
 import type { Blog, Guideline, MaterialKind, PromoInput, PromoResult, Run, Workspace } from "../types";
 import { demoPromo } from "../studioDemo";
-import { demoBlog, demoCards, demoChannels, demoPlan, demoReviewMissions, demoRevise, demoTopicIndex, sampleNews, sampleTrends } from "../demo";
+import { demoBlog, demoCards, demoChannels, demoPlan, demoReviewMissions, demoRevise, demoTopicIndex, sampleNews, sampleTrends, sampleVoc } from "../demo";
 import { seedShotFile, seedWorkspace } from "../seed";
 import { newRun, runPipeline } from "../pipelineCore";
 import { blogDocumentHtml } from "../blogHtml";
@@ -111,7 +111,7 @@ export async function startRun(): Promise<string> {
     updateRun: localUpdateRun,
     collectTrends: async () => ({ trends: sampleTrends, news: sampleNews, mode: "sample" }),
     describeScreenshots: async () => ({}),
-    planTopic: async ({ usedTopics }) => demoPlan(usedTopics),
+    planTopic: async ({ usedTopics, voc, usedVocIds }) => demoPlan(usedTopics, voc, usedVocIds),
     writeBlog: async (_ws, plan) => demoBlog(plan),
     writeCards: async (ws, plan) => demoCards(plan, ws),
     writeChannels: async ({ ws, plan }) => demoChannels(plan, ws),
@@ -159,6 +159,35 @@ export async function saveGuideline(g: Omit<Guideline, "source">): Promise<void>
   await json("/api/guideline", jsonBody("PUT", g));
 }
 
+/**
+ * Turns call summaries into the customer question board. Without a server (or an API key)
+ * the fictional sample analysis is stored instead, whatever was pasted.
+ */
+export async function analyzeVoc(input: { text?: string; file?: File; sample?: boolean }): Promise<void> {
+  if (isStaticDemo) {
+    const ws = localWs();
+    ws.voc = sampleVoc;
+    return write(WS_KEY, ws);
+  }
+  if (input.file) {
+    const form = new FormData();
+    form.set("file", input.file);
+    const res = await fetch(`${BASE}/api/voc`, { method: "POST", body: form });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "분석에 실패했습니다.");
+    return;
+  }
+  await json("/api/voc", jsonBody("POST", { text: input.text ?? "", sample: !!input.sample }));
+}
+
+export async function clearVoc(): Promise<void> {
+  if (isStaticDemo) {
+    const ws = localWs();
+    delete ws.voc;
+    return write(WS_KEY, ws);
+  }
+  await json("/api/voc", { method: "DELETE" });
+}
+
 export async function analyze(): Promise<void> {
   if (isStaticDemo) throw new Error(STATIC_NOTICE);
   await json("/api/analyze", { method: "POST" });
@@ -201,7 +230,8 @@ export function assetUrl(id: string): string {
 
 export function cardUrl(run: Run, index: number, download = false): string {
   // The static site cannot render PNGs on demand; sample topics ship pre-rendered.
-  if (isStaticDemo) return `${BASE}/demo-cards/${demoTopicIndex(run.plan?.topic ?? "")}/${index}.png`;
+  // The cover differs when the plan answers a customer question, so that variant is rendered separately.
+  if (isStaticDemo) return `${BASE}/demo-cards/${demoTopicIndex(run.plan?.topic ?? "")}/${index === 0 && run.plan?.vocId ? "voc-0" : index}.png`;
   return `${BASE}/api/runs/${run.id}/cards/${index}${download ? "?download" : ""}`;
 }
 

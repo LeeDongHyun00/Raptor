@@ -6,10 +6,11 @@ import type { Channels, Review, Run } from "@/lib/types";
 import { blogBodyHtml } from "@/lib/blogHtml";
 import { CHANNEL_LABEL, LIMITS, blogPlainText, emailSubject } from "@/lib/review";
 import { emailDocumentHtml } from "@/lib/emailHtml";
+import { STEPS } from "@/lib/pipelineCore";
 import { bannerUrl, blogExportUrl, cardUrl, downloadHtml, assetUrl, decideRun, downloadBlogHtml, getRun } from "@/lib/client/api";
 import { Badge, Panel, StatusBadge, btn, fmtDate } from "./ui";
 
-const STEPS = ["트렌드 수집", "주제 선정", "콘텐츠 생성", "자동 검수", "보완", "승인 대기"];
+
 type Tab = "blog" | "cards" | "email" | "kakao" | "shorts" | "search" | "plan";
 
 interface Props {
@@ -141,7 +142,7 @@ export function RunView({ initial, disclosure, adHashtag, emailFooter, different
                       <p className="font-bold">
                         {rv.channels?.length
                           ? `채널 보완 · ${rv.channels.map((c) => CHANNEL_LABEL[c]).join(", ")} 재생성`
-                          : `블로그 ${rv.round}차 보완 · 섹션 ${rv.sectionIndexes.map((i) => i + 1).join(", ")}번 재작성`}
+                          : `블로그 ${rv.round}차 보완 · ${[rv.title ? "제목" : "", rv.sectionIndexes.length ? `섹션 ${rv.sectionIndexes.map((i) => i + 1).join(", ")}번` : ""].filter(Boolean).join("과 ")} 재작성`}
                       </p>
                       <ul className="mt-1.5 list-disc space-y-1 pl-4 text-mute">
                         {rv.reasons.map((r, i) => <li key={i}>{r}</li>)}
@@ -227,6 +228,7 @@ function Checklist({ review }: { review: Review }) {
         <Check pass={review.charCount >= review.minChars} label="본문 분량" detail={`공백 제외 ${review.charCount.toLocaleString()}자 · ${review.minChars ? `기준 ${review.minChars.toLocaleString()}자 이상` : "가이드라인에 기준 없음"}`} />
         <Check pass={review.cardCountOk} label="카드뉴스 6~8장" />
         <Check pass={review.adDisclosure} label="‘광고’ 표기" detail="공정위 추천·보증 지침에 따라 자동 삽입" />
+        {review.privacy && <Check pass={review.privacy.pass} label="개인정보 노출 없음" detail={review.privacy.detail} />}
       </ul>
       {review.channelChecks && review.channelChecks.length > 0 && (
         <>
@@ -393,8 +395,36 @@ function CardsTab({ run, disclosure, adHashtag }: { run: Run; disclosure: string
 function PlanTab({ run, differentiators }: { run: Run; differentiators: { id: string; title: string }[] }) {
   const plan = run.plan!;
   const max = Math.max(...run.trends.map((t) => Math.abs(t.change)), 1);
+  const voc = run.vocItem;
   return (
     <div className="space-y-4">
+      {voc && (
+        <Panel title="이 주제가 답하는 고객 질문">
+          <p className="text-xl font-extrabold leading-snug tracking-tight">{voc.question}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {run.vocMode === "sample" && <Badge tone="warn">[샘플]</Badge>}
+            <Badge>{voc.category}</Badge>
+            <Badge tone="good">통화 {voc.count}건</Badge>
+            {voc.differentiatorIds.map((id) => (
+              <Link key={id} href={`/insights#${id}`} className="rounded-full focus-visible:outline-2">
+                <Badge tone="solid">{differentiators.find((d) => d.id === id)?.title ?? id} →</Badge>
+              </Link>
+            ))}
+          </div>
+          {voc.quotes.length > 0 && (
+            <div className="mt-4 rounded-xl bg-cream p-4">
+              <p className="text-xs font-bold text-mute">내부 확인용 · 외부 콘텐츠에는 쓰지 않음</p>
+              <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-[#33423a]">
+                {voc.quotes.map((q, i) => <li key={i}>“{q}”</li>)}
+              </ul>
+            </div>
+          )}
+          <p className="mt-3 text-xs leading-relaxed text-mute">
+            {run.vocMode === "sample" ? "가상의 샘플 통화 요약에서 나온 질문입니다(실제 고객 데이터 아님). " : ""}
+            외부 콘텐츠에는 일반화한 질문만 쓰고, 통화 수와 인용은 이 화면에서만 보입니다.
+          </p>
+        </Panel>
+      )}
       <Panel title="이 주제를 고른 이유">
         <p className="text-sm leading-relaxed">{plan.reason}</p>
         {plan.coreMessage && (

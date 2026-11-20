@@ -9,7 +9,7 @@ import { ResetHistoryButton, RunNowButton } from "../RunControls";
 
 const FLOW = [
   { n: "1", title: "차별점 분석", body: "제안서·매뉴얼에서 강점을 뽑고 근거 페이지를 표시" },
-  { n: "2", title: "트렌드 연결", body: "2주간 검색어·뉴스에서 제품과 맞는 주제를 선정" },
+  { n: "2", title: "트렌드·고객 질문 연결", body: "통화에서 나온 고객 질문과 2주간 검색어·뉴스에서 답할 주제를 선정" },
   { n: "3", title: "6개 채널 동시 생성", body: "하나의 핵심 메시지를 블로그·인스타그램·이메일·카카오톡 배너·쇼츠·검색광고 형식으로" },
   { n: "4", title: "자동 검수", body: "키워드·미션·채널별 형식 규칙을 검사하고 미충족 부분만 다시 작성" },
   { n: "5", title: "담당자 승인", body: "검토 후 승인하면 복사·내보내기로 직접 업로드" },
@@ -26,6 +26,9 @@ export function DashboardScreen() {
   const next = nextRunAt(runs);
   const used = runs.filter((r) => r.plan && r.status !== "failed");
   const usingSample = ws.materials.some((m) => m.demo);
+  // Latest non-failed run per customer question.
+  const answered: Record<string, (typeof runs)[number]> = {};
+  for (const r of [...runs].reverse()) if (r.status !== "failed" && r.plan?.vocId) answered[r.plan.vocId] = r;
 
   return (
     <div className="space-y-6">
@@ -34,10 +37,10 @@ export function DashboardScreen() {
           <div>
             <p className="text-sm font-semibold text-horn">{ws.product.company} · {ws.product.name}</p>
             <h1 className="mt-2 text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl">
-              자료만 넣어 두면,<br />2주마다 6개 채널 소재가 승인함에 도착합니다
+              통화가 끝나면 보고서가 시작되고,<br />보고서가 쌓이면 홍보가 시작됩니다
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-cream/80">
-              {ws.product.summary}의 차별점을 요즘 트렌드와 엮어 하나의 핵심 메시지를 정하고, 블로그·인스타그램·이메일·카카오톡 배너·쇼츠·검색광고에 맞는 형식으로 각각 만든 뒤 검수까지 마쳐 담당자 승인을 기다립니다.
+              고객이 통화에서 실제로 물어본 질문을 다음 콘텐츠의 주제로 씁니다. 질문에 답할 수 있는 차별점과 요즘 트렌드를 엮어 블로그·인스타그램·이메일·카카오톡 배너·쇼츠·검색광고 소재를 2주마다 만들고, 검수까지 마쳐 담당자 승인을 기다립니다.
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-4">
               <RunNowButton />
@@ -104,6 +107,38 @@ export function DashboardScreen() {
           </ul>
         )}
       </Panel>
+
+      {ws.voc && (
+        <Panel
+          title="고객 질문 보드"
+          action={<span className="text-sm text-mute">고객 질문 {ws.voc.items.length}개 중 <strong className="font-extrabold text-ink">{ws.voc.items.filter((v) => answered[v.id]).length}개</strong>에 답했습니다</span>}
+        >
+          <p className="-mt-2 mb-4 flex flex-wrap items-center gap-2 text-xs text-mute">
+            {ws.voc.mode === "sample" && <Badge tone="warn">[샘플]</Badge>}
+            <span>{ws.voc.source}</span>
+          </p>
+          <ol className="divide-y divide-line/70">
+            {ws.voc.items.map((v) => {
+              const run = answered[v.id];
+              const open = v.differentiatorIds.length > 0;
+              return (
+                <li key={v.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 py-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold leading-snug">{v.question}</p>
+                    <p className="mt-0.5 text-xs text-mute">{v.category} · 통화 {v.count}건</p>
+                  </div>
+                  {run ? (
+                    <Link href={`/run?id=${run.id}`} className="shrink-0"><Badge tone="good">답함 ✓</Badge></Link>
+                  ) : (
+                    <Badge tone={open ? "warn" : "neutral"}>{open ? "다음 후보" : "문서로 답할 수 없음"}</Badge>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+          <p className="mt-3 text-xs text-mute">2주마다 아직 답하지 않은 질문으로 넘어갑니다. 통화 수는 이 화면에서만 보이고 외부 콘텐츠에는 쓰지 않습니다.</p>
+        </Panel>
+      )}
 
       <Panel title="생성 이력" action={runs.length > 0 ? <ResetHistoryButton onDone={reload} /> : undefined}>
         {runs.length === 0 ? (

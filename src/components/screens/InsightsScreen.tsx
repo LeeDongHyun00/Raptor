@@ -37,7 +37,7 @@ export function InsightsScreen() {
 
       <div className="grid gap-5 lg:grid-cols-2">
         {ws.differentiators.map((d, i) => (
-          <article key={d.id} className="flex flex-col rounded-2xl border border-line bg-paper p-6">
+          <article key={d.id} id={d.id} className="flex scroll-mt-24 flex-col rounded-2xl border border-line bg-paper p-6">
             <div className="flex items-start gap-3">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-forest text-sm font-extrabold text-cream">{i + 1}</span>
               <div>

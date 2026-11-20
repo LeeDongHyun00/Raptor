@@ -1,4 +1,4 @@
-import type { Blog, BlogSection, CardNews, ChannelId, Channels, Guideline, Material, MissionCheck, NewsItem, Plan, Run, TrendItem, Workspace } from "./types";
+import type { Blog, BlogSection, CardNews, ChannelId, Channels, Guideline, VocItem, Material, MissionCheck, NewsItem, Plan, Run, TrendItem, Workspace } from "./types";
 import { CHANNEL_LABEL, buildReview, channelProblems, collectProblems } from "./review";
 
 /**
@@ -6,7 +6,7 @@ import { CHANNEL_LABEL, buildReview, channelProblems, collectProblems } from "./
  * store; the static GitHub Pages demo wires it to sample responses and localStorage.
  */
 
-export const STEPS = ["트렌드 수집", "주제 선정", "콘텐츠 생성", "자동 검수", "보완", "승인 대기"] as const;
+export const STEPS = ["트렌드·고객 질문 수집", "주제 선정", "콘텐츠 생성", "자동 검수", "보완", "승인 대기"] as const;
 export const INTERVAL_DAYS = 14;
 const MAX_FIX_ROUNDS = 2;
 
@@ -17,7 +17,11 @@ export interface PipelineDeps {
   updateRun(id: string, mutate: (run: Run) => void): Promise<Run>;
   collectTrends(): Promise<{ trends: TrendItem[]; news: NewsItem[]; mode: "live" | "sample" }>;
   describeScreenshots(ws: Workspace, shots: Material[]): Promise<Record<string, string>>;
-  planTopic(args: { ws: Workspace; trends: TrendItem[]; news: NewsItem[]; usedTopics: string[] }): Promise<Plan>;
+  planTopic(args: {
+    ws: Workspace; trends: TrendItem[]; news: NewsItem[]; usedTopics: string[];
+    /** Customer questions still open for planning, and the ids earlier runs already answered. */
+    voc: VocItem[]; usedVocIds: string[];
+  }): Promise<Plan>;
   writeBlog(ws: Workspace, plan: Plan, shots: Material[]): Promise<Blog>;
   writeCards(ws: Workspace, plan: Plan, shots: Material[]): Promise<CardNews>;
   /** Writes the given channels (all four when `only` is omitted); `notes` carry review failures to fix. */
@@ -27,7 +31,9 @@ export interface PipelineDeps {
   reviewMissions(guideline: Guideline, blog: Blog): Promise<MissionCheck[]>;
   reviseBlog(args: {
     ws: Workspace; plan: Plan; blog: Blog; shots: Material[]; reasons: string[]; sectionIndexes: number[];
-  }): Promise<{ index: number; section: BlogSection }[]>;
+    /** Set when a failed rule concerns the title, which section rewrites cannot reach. */
+    fixTitle?: boolean;
+  }): Promise<{ title?: string; sections: { index: number; section: BlogSection }[] }>;
   /** Pause after each step; lets the instant sample pipeline show its progress. */
   stepDelayMs?: number;
 }
@@ -69,16 +75,27 @@ export async function runPipeline(runId: string, deps: PipelineDeps): Promise<vo
 
     // 1. Trends
     const { trends, news, mode } = await deps.collectTrends();
-    await log(STEPS[0], mode === "live"
-      ? `네이버 데이터랩에서 키워드 ${trends.length}개, 뉴스 ${news.length}건을 모았습니다.`
-      : `샘플 트렌드 ${trends.length}개를 불러왔습니다(네이버 API 키 미설정).`, (r) => { r.trends = trends; r.news = news; r.trendMode = mode; });
+    const voc = ws.voc?.items ?? [];
+    const trendNote = mode === "live"
+      ? `네이버 데이터랩에서 키워드 ${trends.length}개, 뉴스 ${news.length}건`
+      : `샘플 트렌드 ${trends.length}개`;
+    await log(STEPS[0], voc.length
+      ? `${trendNote}와 고객 질문 ${voc.length}개를 불러왔습니다${mode === "live" ? "" : "(네이버 API 키 미설정)"}.`
+      : mode === "live" ? `${trendNote}을 모았습니다.` : `${trendNote}를 불러왔습니다(네이버 API 키 미설정).`,
+      (r) => { r.trends = trends; r.news = news; r.trendMode = mode; });
 
-    // 2. Topic — never repeat a topic that already went through the queue.
-    const usedTopics = (await deps.getRuns())
-      .filter((r) => r.id !== runId && r.plan && r.status !== "failed")
-      .map((r) => r.plan!.topic);
-    const plan = await deps.planTopic({ ws, trends, news, usedTopics });
-    await log(STEPS[1], `‘${plan.trendKeyword}’ 트렌드와 연결해 주제를 정했습니다: ${plan.topic}`, (r) => { r.plan = plan; });
+    // 2. Topic — never repeat a topic or a customer question that already went through the queue.
+    const earlier = (await deps.getRuns()).filter((r) => r.id !== runId && r.plan && r.status !== "failed");
+    const usedTopics = earlier.map((r) => r.plan!.topic);
+    const usedVocIds = earlier.map((r) => r.plan!.vocId).filter((id): id is string => !!id);
+    const plan = await deps.planTopic({ ws, trends, news, usedTopics, voc, usedVocIds });
+    const vocItem = voc.find((v) => v.id === plan.vocId);
+    await log(STEPS[1], vocItem
+      ? `고객 질문 ‘${vocItem.question}’과 ‘${plan.trendKeyword}’ 트렌드를 연결해 주제를 정했습니다: ${plan.topic}`
+      : `‘${plan.trendKeyword}’ 트렌드와 연결해 주제를 정했습니다: ${plan.topic}`,
+      (r) => { r.plan = plan; r.vocItem = vocItem; r.vocMode = vocItem ? ws.voc?.mode : undefined; });
+    // Internal quotes behind the plan must never surface in public copy.
+    const quotes = vocItem?.quotes ?? [];
 
     // 3. One plan -> blog post and card news together
     let shots = ws.materials.filter((m) => m.kind === "screenshot");
@@ -98,7 +115,7 @@ export async function runPipeline(runId: string, deps: PipelineDeps): Promise<vo
     await log(STEPS[2], `하나의 기획으로 6개 채널 소재를 만들었습니다: 블로그 글(섹션 ${blog.sections.length}개), 카드뉴스(${cards.slides.length}장), 이메일, 카카오톡 배너(${channels.kakao.length}개), 쇼츠 대본, 검색광고(${channels.searchAds.ads.length}개).`, (r) => { r.blog = blog; r.cards = cards; r.channels = channels; });
 
     // 4. Review: keywords in code, missions by AI
-    let review = buildReview(ws.guideline, blog, cards, await deps.reviewMissions(ws.guideline, blog), channels);
+    let review = buildReview(ws.guideline, blog, cards, await deps.reviewMissions(ws.guideline, blog), channels, quotes);
     const firstReview = review;
     await log(STEPS[3], `가이드라인 ${review.total}개 항목 중 ${review.passed}개를 충족했습니다.`, (r) => { r.review = review; r.firstReview = firstReview; });
 
@@ -109,24 +126,25 @@ export async function runPipeline(runId: string, deps: PipelineDeps): Promise<vo
       const redo = await deps.writeChannels({ ws, plan, only: failedChannels, notes });
       channels = { ...channels, ...redo };
       const missions = review.missionChecks;
-      review = buildReview(ws.guideline, blog, cards, missions, channels);
+      review = buildReview(ws.guideline, blog, cards, missions, channels, quotes);
       await log(STEPS[4], `형식 규칙을 지키지 못한 ${failedChannels.map((c) => CHANNEL_LABEL[c]).join(", ")}만 다시 만들었습니다. 재검수 결과 ${review.passed}/${review.total}.`, (r) => {
         r.channels = channels; r.review = review;
         r.revisions.push({ round: 0, sectionIndexes: [], reasons: Object.values(notes).flat(), channels: failedChannels });
       });
     }
     for (let round = 1; round <= MAX_FIX_ROUNDS && review.passed < review.total; round++) {
-      const { reasons, sectionIndexes } = collectProblems(review, blog);
-      if (sectionIndexes.length === 0) break;
-      const fixes = await deps.reviseBlog({ ws, plan, blog, shots, reasons, sectionIndexes });
-      if (fixes.length === 0) break;
+      const { reasons, sectionIndexes, fixTitle } = collectProblems(review, blog);
+      if (sectionIndexes.length === 0 && !fixTitle) break;
+      const fix = await deps.reviseBlog({ ws, plan, blog, shots, reasons, sectionIndexes, fixTitle });
+      if (fix.sections.length === 0 && !fix.title) break;
       const sections = [...blog.sections];
-      for (const f of fixes) sections[f.index] = f.section;
-      blog = { ...blog, sections };
-      review = buildReview(ws.guideline, blog, cards, await deps.reviewMissions(ws.guideline, blog), channels);
-      const applied = fixes.map((f) => f.index);
-      await log(STEPS[4], `미충족 ${reasons.length}건을 해결하도록 섹션 ${applied.map((i) => i + 1).join(", ")}번만 다시 썼습니다. 재검수 결과 ${review.passed}/${review.total}.`, (r) => {
-        r.blog = blog; r.review = review; r.revisions.push({ round, sectionIndexes: applied, reasons });
+      for (const f of fix.sections) sections[f.index] = f.section;
+      blog = { ...blog, title: fix.title ?? blog.title, sections };
+      review = buildReview(ws.guideline, blog, cards, await deps.reviewMissions(ws.guideline, blog), channels, quotes);
+      const applied = fix.sections.map((f) => f.index);
+      const what = [fix.title ? "제목" : "", applied.length ? `섹션 ${applied.map((i) => i + 1).join(", ")}번` : ""].filter(Boolean).join("과 ");
+      await log(STEPS[4], `미충족 ${reasons.length}건을 해결하도록 ${what}만 다시 썼습니다. 재검수 결과 ${review.passed}/${review.total}.`, (r) => {
+        r.blog = blog; r.review = review; r.revisions.push({ round, sectionIndexes: applied, reasons, title: !!fix.title });
       });
     }
 

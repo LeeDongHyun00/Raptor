@@ -1,4 +1,4 @@
-import type { Blog, BlogSection, CardNews, Channels, Guideline, MissionCheck, NewsItem, Plan, TrendItem, Workspace } from "./types";
+import type { Blog, BlogSection, CardNews, Channels, Guideline, VocBoard, VocItem, MissionCheck, NewsItem, Plan, TrendItem, Workspace } from "./types";
 
 /**
  * Canned responses used when no Anthropic API key is configured, so the whole
@@ -25,7 +25,62 @@ export const sampleNews: NewsItem[] = [
   { keyword: "고객관리 프로그램", title: "[샘플] 담당자 교체 때마다 반복되는 질문, 고객 이탈로 이어져", link: "", pubDate: "" },
 ];
 
+/**
+ * Fictional call-summary analysis for the demo. Not real customer data: every screen
+ * showing it carries a [샘플] badge and the source line says so.
+ */
+export const sampleVoc: VocBoard = {
+  source: "[샘플] 가상 통화 요약 42건 (실제 고객 데이터 아님)",
+  period: "최근 2주",
+  analyzedAt: "2026-11-20T00:00:00.000Z",
+  mode: "sample",
+  items: [
+    {
+      id: "v_mobile", category: "도입 문의", count: 9, differentiatorIds: ["d_unified"],
+      question: "외근 중에 휴대폰으로 한 통화도 회사에서 같이 볼 수 있나요?",
+      quotes: ["밖에서 거래처랑 통화한 건 나중에 확인할 방법이 없어서요", "사무실 전화는 녹음되는데 영업 나가면 그게 안 되니까요"],
+      angle: "휴대폰·인터넷전화·PC폰 통화가 하나의 목록에 모이는 과정을 보여 준다",
+    },
+    {
+      id: "v_daily", category: "기능 질문", count: 7, differentiatorIds: ["d_summary", "d_report"],
+      question: "영업사원이 매일 쓰는 통화 메모랑 일일 보고서를 줄일 수 있나요?",
+      quotes: ["저녁마다 보고서 쓰느라 직원들 불만이 많거든요"],
+      angle: "통화가 끝나면 남는 AI 요약과 리포트가 메모와 보고를 대신하는 흐름을 보여 준다",
+    },
+    {
+      id: "v_handover", category: "도입 우려", count: 6, differentiatorIds: ["d_crm"],
+      question: "담당자가 퇴사하면 그 고객과 나눈 상담 이력은 어떻게 되나요?",
+      quotes: ["전임자가 뭐라고 약속했는지 아무도 몰라서 곤란했던 적이 있어요"],
+      angle: "통화기록이 고객 이력으로 남아 담당자가 바뀌어도 이어지는 점을 보여 준다",
+    },
+    {
+      id: "v_security", category: "도입 우려", count: 5, differentiatorIds: ["d_security"],
+      question: "녹음 파일을 아무나 들을 수 있으면 곤란한데, 권한을 나눌 수 있나요?",
+      quotes: ["통화 녹음이 돌아다니면 문제가 될 것 같아서 걱정입니다"],
+      angle: "재생 사유 입력, 사용 이력 로그, 사용자별 권한으로 열람을 통제하는 점을 설명한다",
+    },
+    {
+      id: "v_stats", category: "기능 질문", count: 4, differentiatorIds: ["d_stats"],
+      question: "직원별로 통화를 몇 건 했는지, 미결 상담이 뭔지 볼 수 있나요?",
+      quotes: ["누가 얼마나 전화하는지 감으로만 알고 있어요"],
+      angle: "담당자별 통화 통계와 상담 상태 관리 화면을 보여 준다",
+    },
+    {
+      id: "v_carrier", category: "도입 문의", count: 3, differentiatorIds: ["d_unified"],
+      question: "지금 쓰는 통신사를 바꾸지 않고도 쓸 수 있나요?",
+      quotes: ["번호나 통신사를 바꿔야 하면 도입이 어렵습니다"],
+      angle: "통신사와 관계없이 쓸 수 있다는 점을 도입 절차와 함께 안내한다",
+    },
+  ],
+};
+
 interface DemoTopic {
+  /** Customer question this prepared topic answers when VOC is available. */
+  vocId: string;
+  /** Direct answer that follows the question in the opening paragraph. */
+  vocAnswer: string;
+  /** Question-shaped email subject and search queries used when the plan answers this question. */
+  voc: { subject: string; searches: string[] };
   plan: Omit<Plan, "differentiatorIds">;
   intro: string;
   leads: { record: string; summary: string; manage: string };
@@ -43,6 +98,9 @@ const NUMERIC_BANNER = { copy: "통화 3종, 한 화면에서 관리", sub: "휴
 
 const TOPICS: DemoTopic[] = [
   {
+    vocId: "v_mobile",
+    voc: { subject: "외근 중 휴대폰 통화도 회사에서 볼 수 있나요?", searches: ["휴대폰 통화 회사에서 확인하는 법", "외근 통화 녹음 어떻게 하나요"] },
+    vocAnswer: "네, 볼 수 있습니다. 외근 중 휴대폰 통화도 사무실 인터넷전화 통화와 같은 목록에 자동으로 올라옵니다. 직원마다 전화를 쓰는 방식이 달라 통화 기록이 흩어지던 문제를, 녹음을 한곳에 모으는 것으로 풉니다.",
     plan: {
       topic: "영업사원 통화관리 업무자동화, 통화요약까지 되는 콜센터 프로그램 티링크 비즈레코딩",
       trendKeyword: "업무자동화",
@@ -76,6 +134,9 @@ const TOPICS: DemoTopic[] = [
     adKeyword: "영업 업무자동화",
   },
   {
+    vocId: "v_daily",
+    voc: { subject: "통화 메모와 일일 보고서, 줄일 수 있을까요?", searches: ["영업 일일 보고서 줄이는 법", "통화 메모 자동으로 하는 법"] },
+    vocAnswer: "네, 줄일 수 있습니다. 통화가 끝나면 AI가 요약과 키워드를 남기고 리포트가 현황을 정리하기 때문에, 메모와 일일 보고는 새로 쓰는 일이 아니라 확인하는 일로 바뀝니다. 기록이 사람의 기억과 손을 거치지 않아도 남습니다.",
     plan: {
       topic: "통화요약 AI로 일일 보고서 줄이기, 업무자동화 콜센터 프로그램 티링크 비즈레코딩",
       trendKeyword: "AI 통화요약",
@@ -109,6 +170,9 @@ const TOPICS: DemoTopic[] = [
     adKeyword: "AI 통화요약 프로그램",
   },
   {
+    vocId: "v_handover",
+    voc: { subject: "담당자가 퇴사하면 상담 이력은 어떻게 되나요?", searches: ["담당자 퇴사 고객 인수인계 방법", "상담 이력 관리 어떻게 하나요"] },
+    vocAnswer: "그대로 남습니다. 통화기록과 상담 내용이 담당자 개인이 아니라 고객 단위로 쌓이기 때문에, 담당자가 바뀌어도 다음 사람이 이전 대화를 바로 확인할 수 있습니다. 고객이 같은 이야기를 처음부터 다시 할 필요가 없습니다.",
     plan: {
       topic: "담당자가 바뀌어도 이어지는 고객관리, 통화요약·업무자동화 콜센터 프로그램 티링크 비즈레코딩",
       trendKeyword: "고객관리 프로그램",
@@ -158,14 +222,23 @@ function topicFor(plan: Plan): DemoTopic {
   return TOPICS.find((t) => t.plan.topic === plan.topic) ?? TOPICS[0];
 }
 
-export function demoPlan(usedTopics: string[]): Plan {
-  const next = TOPICS.find((t) => !usedTopics.includes(t.plan.topic));
+export function demoPlan(usedTopics: string[], voc: VocItem[] = [], usedVocIds: string[] = []): Plan {
+  const next = TOPICS.find((t) => !usedTopics.includes(t.plan.topic) && !usedVocIds.includes(t.vocId));
   if (!next) {
     throw new Error(
-      `데모 모드의 샘플 주제 ${TOPICS.length}개를 모두 사용했습니다. 이전에 다룬 주제는 다시 쓰지 않으므로, 대시보드에서 이력을 초기화하거나 ANTHROPIC_API_KEY를 설정해 실제 생성으로 전환하세요.`,
+      `데모 모드에 준비된 주제 ${TOPICS.length}개를 모두 사용했습니다. 이전에 다룬 주제와 고객 질문은 다시 쓰지 않으므로, 대시보드의 ‘이력 초기화’로 처음부터 다시 보거나 ANTHROPIC_API_KEY를 설정해 실제 생성으로 전환하세요.`,
     );
   }
-  return { ...next.plan, coreMessage: next.coreMessage, differentiatorIds: USED_DIFFS };
+  const plan: Plan = { ...next.plan, coreMessage: next.coreMessage, differentiatorIds: USED_DIFFS };
+  const item = voc.find((v) => v.id === next.vocId);
+  if (!item) return plan;
+  return {
+    ...plan,
+    vocId: item.id,
+    customerQuestion: item.question,
+    // Call counts are fine here: the reason is shown on internal screens only.
+    reason: `최근 2주 통화 중 ${item.count}건에서 나온 질문이고, 연결된 차별점으로 바로 답할 수 있습니다. ‘${plan.trendKeyword}’ 검색 관심도 오르고 있어 함께 연결했습니다.`,
+  };
 }
 
 export function demoBlog(plan: Plan): Blog {
@@ -175,8 +248,9 @@ export function demoBlog(plan: Plan): Blog {
   return {
     title: plan.topic,
     sections: [
-      sec("흩어진 통화 기록, 기존 영업관리의 문제", [
-        t.intro,
+      // With a customer question the post opens by asking it and answering right away.
+      sec(plan.customerQuestion ?? "흩어진 통화 기록, 기존 영업관리의 문제", [
+        plan.customerQuestion ? `${plan.customerQuestion} ${t.vocAnswer}` : t.intro,
         "티링크 비즈레코딩은 휴대폰 통화녹음과 인터넷전화 자동녹취를 하나로 묶어 영업사원 통화관리를 자동화하는 솔루션입니다. 콜센터 프로그램을 찾아보던 팀이라면, 녹취부터 통화요약과 리포트까지 한 번에 이어지는 구성을 눈여겨볼 만합니다.",
       ]),
       sec("휴대폰·인터넷전화·PC폰 통화를 동시에 녹음합니다", [
@@ -210,12 +284,14 @@ export function demoBlog(plan: Plan): Blog {
   };
 }
 
-export function demoRevise(plan: Plan, blog: Blog, sectionIndexes: number[]): { index: number; section: BlogSection }[] {
+export function demoRevise(plan: Plan, blog: Blog, sectionIndexes: number[]): { sections: { index: number; section: BlogSection }[] } {
   const t = topicFor(plan);
   const last = blog.sections.length - 1;
-  return sectionIndexes
-    .filter((i) => i === last)
-    .map((i) => ({ index: i, section: { ...blog.sections[i], paragraphs: [t.closing, SECURITY, CONCLUSION, FOOTER] } }));
+  return {
+    sections: sectionIndexes
+      .filter((i) => i === last)
+      .map((i) => ({ index: i, section: { ...blog.sections[i], paragraphs: [t.closing, SECURITY, CONCLUSION, FOOTER] } })),
+  };
 }
 
 export function demoCards(plan: Plan, ws: Workspace): CardNews {
@@ -224,7 +300,7 @@ export function demoCards(plan: Plan, ws: Workspace): CardNews {
     ({ kind: "point" as const, eyebrow, title, body, screenshotId });
   return {
     slides: [
-      { kind: "cover", eyebrow: plan.trendKeyword, title: t.cardProblem.title, body: "", screenshotId: null },
+      { kind: "cover", eyebrow: plan.customerQuestion ? "자주 받는 질문" : plan.trendKeyword, title: plan.customerQuestion ?? t.cardProblem.title, body: "", screenshotId: null },
       point("이런 적 있나요", "기록이 사람마다 흩어집니다", t.cardProblem.body),
       point("해결 1", "어떤 전화든 자동으로 녹취", "휴대폰, 인터넷전화, PC폰 통화가 하나의 목록에 모입니다.", "shot_calls"),
       point("해결 2", "통화가 끝나면 AI 통화요약", "키워드, 요약, 대화 스크립트가 자동으로 남습니다.", "shot_summary"),
@@ -243,7 +319,8 @@ export function demoChannels(plan: Plan, ws: Workspace): Channels {
   const name = ws.product.name;
   return {
     email: {
-      subjects: t.email.subjects,
+      // With a customer question, one of the A/B subjects asks it (shortened to fit the subject limit).
+      subjects: plan.customerQuestion ? [t.email.subjects[0], t.voc.subject] : t.email.subjects,
       preheader: t.email.preheader,
       greeting: "{{이름}}님, 안녕하세요.",
       paragraphs: [
@@ -257,7 +334,7 @@ export function demoChannels(plan: Plan, ws: Workspace): Channels {
     shorts: {
       title: t.shorts.title,
       scenes: [
-        { seconds: 2, visual: "통화를 끊자마자 수첩을 찾는 직원의 1인칭 시점", narration: t.shorts.hookLine, overlay: t.shorts.hookOverlay },
+        { seconds: 2, visual: "통화를 끊자마자 수첩을 찾는 직원의 1인칭 시점", narration: plan.customerQuestion ?? t.shorts.hookLine, overlay: t.shorts.hookOverlay },
         { seconds: 5, visual: "휴대폰, 사무실 전화기, 수첩, 보고서 창을 빠르게 교차", narration: "휴대폰으로 받고, 사무실 전화로 걸고, 기록은 다 따로따로.", overlay: "기록이 다 흩어져 있다면" },
         { seconds: 6, visual: "통화 녹음 목록 화면 녹화: 방금 끝난 통화가 목록에 올라옴", narration: `티링크 ${name}은 휴대폰이든 인터넷전화든 통화가 자동으로 녹취돼요.`, overlay: "어떤 전화든 자동 녹취" },
         { seconds: 6, visual: "통화 상세 화면 녹화: 키워드, AI 요약, 대화 스크립트가 표시됨", narration: "끝나면 키워드랑 AI 통화요약, 대화 내용까지 글로 남습니다.", overlay: "STT + AI 통화요약" },
@@ -268,7 +345,7 @@ export function demoChannels(plan: Plan, ws: Workspace): Channels {
       pinnedComment: `통화 기록과 보고에 쓰는 시간을 줄이고 싶다면 → 프로필 링크에서 티링크 ${name} 도입 상담을 신청하세요. (${CONTACT.phone})`,
     },
     searchAds: {
-      keywords: ["콜센터 프로그램", "영업사원 통화관리", "휴대폰 통화녹음 프로그램", "인터넷전화 녹취", "통화요약 프로그램", t.adKeyword],
+      keywords: ["콜센터 프로그램", "영업사원 통화관리", "휴대폰 통화녹음 프로그램", "인터넷전화 녹취", "통화요약 프로그램", t.adKeyword, ...(plan.customerQuestion ? t.voc.searches : [])],
       negativeKeywords: ["무료 다운로드", "개인용", "아이폰 통화녹음", "녹음기", "콜센터 채용"],
       ads: [
         { headline: `콜센터 프로그램 ${name}`, description: "휴대폰·인터넷전화 통화를 자동 녹취하고 AI가 통화요약까지. 도입 상담 신청." },
@@ -317,7 +394,8 @@ export function demoReviewMissions(guideline: Guideline, blog: Blog): MissionChe
       mission,
       pass: missing.length === 0,
       note: missing.length ? `${where}에 빠진 내용: ${missing.join(", ")}` : `${where}에서 확인: ${terms.join(", ")}`,
-      sectionIndexes: missing.length ? [rule.fix === "first" ? 0 : last] : [],
+      sectionIndexes: missing.length && rule.scope !== "title" ? [rule.fix === "first" ? 0 : last] : [],
+      fixTitle: missing.some((term) => rule.scope.startsWith("title") && !blog.title.includes(term)),
     };
   });
 }
