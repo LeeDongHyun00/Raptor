@@ -204,3 +204,49 @@ export interface Run {
   decidedAt?: string;
   error?: string;
 }
+
+/* ---------- Promo studio (one-shot: document + photos -> promo content) ---------- */
+
+export interface PromoInput {
+  name: string;
+  company: string;
+  summary: string;
+  /** Who the promo should speak to, e.g. "중소기업 영업팀장". Optional. */
+  audience: string;
+}
+
+export interface PromoDifferentiator {
+  title: string;
+  plain: string;
+  conventional: string;
+  ours: string;
+  evidence: { doc: string; page: number | null; quote: string }[];
+}
+
+export interface PromoHighlight {
+  title: string;
+  body: string;
+  /** Index into PromoResult.differentiators. */
+  differentiatorIndex: number;
+  /** Index into the uploaded photos, or null when no photo fits. */
+  photoIndex: number | null;
+  photoAlt: string | null;
+}
+
+export interface PromoResult {
+  mode: "live" | "demo";
+  model: string;
+  differentiators: PromoDifferentiator[];
+  photos: { index: number; description: string }[];
+  promo: {
+    eyebrow: string;
+    headline: string;
+    subheadline: string;
+    hook: string;
+    heroPhotoIndex: number | null;
+    highlights: PromoHighlight[];
+    ctaLabel: string;
+    ctaNote: string;
+  };
+  sns: { caption: string; hashtags: string[] };
+}

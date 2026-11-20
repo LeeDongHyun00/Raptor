@@ -12,7 +12,7 @@ const pretendard = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "트라이혼 · 격주 콘텐츠 오토파일럿",
+  title: "Raptor · 격주 콘텐츠 오토파일럿",
   description: "제품 자료와 화면 캡처만 넣어 두면 차별점 분석, 트렌드 연결, 6개 광고 채널 소재 제작까지 격주로 자동 진행합니다.",
 };
 
@@ -24,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-8 gap-y-2 px-4 py-3 sm:px-6">
             <Link href="/" className="flex items-center gap-2.5">
               <Logo />
-              <span className="text-lg font-extrabold tracking-tight">트라이혼</span>
+              <span className="text-lg font-extrabold tracking-tight">Raptor</span>
               <span className="hidden text-xs text-mute sm:inline">격주 콘텐츠 오토파일럿</span>
             </Link>
             <Nav />
