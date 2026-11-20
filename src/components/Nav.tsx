@@ -13,7 +13,7 @@ const items = [
 export function Nav() {
   const path = usePathname();
   return (
-    <nav className="flex gap-1 text-sm font-semibold">
+    <nav className="-mx-1 flex gap-1 overflow-x-auto text-sm font-semibold">
       {items.map((it) => {
         const active = it.href === "/" ? path === "/" || path.startsWith("/run") : path.startsWith(it.href);
         return (
@@ -21,7 +21,7 @@ export function Nav() {
             key={it.href}
             href={it.href}
             aria-current={active ? "page" : undefined}
-            className={`rounded-full px-3.5 py-1.5 transition-colors ${active ? "bg-forest text-cream" : "text-mute hover:bg-forest-soft hover:text-ink"}`}
+            className={`whitespace-nowrap border-b-2 px-2.5 py-3.5 transition-colors ${active ? "border-brand text-ink" : "border-transparent text-mute hover:text-ink"}`}
           >
             {it.label}
           </Link>

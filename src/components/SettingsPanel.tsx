@@ -7,8 +7,8 @@ import { saveSettings } from "@/lib/client/api";
 import { Panel } from "./ui";
 
 const chip = (on: boolean) =>
-  `rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors ${on ? "border-forest bg-forest text-cream" : "border-line bg-paper text-mute hover:border-forest hover:text-ink"}`;
-const field = "w-full rounded-lg border border-line bg-white px-3 py-2 text-sm leading-relaxed focus:border-forest focus:outline-none";
+  `rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors ${on ? "border-brand bg-brand text-surface" : "border-line bg-surface text-mute hover:border-brand hover:text-ink"}`;
+const field = "w-full rounded-lg border border-line bg-white px-3 py-2 text-sm leading-relaxed focus:border-brand focus:outline-none";
 
 /** Filters applied to the next run: which channels, which tone and look, for whom. */
 export function SettingsPanel({ initial, aiMode, onSaved }: { initial: ProductionSettings; aiMode: "live" | "demo"; onSaved: () => void }) {
@@ -71,7 +71,7 @@ export function SettingsPanel({ initial, aiMode, onSaved }: { initial: Productio
               const on = s.design === d.id;
               return (
                 <button key={d.id} type="button" aria-pressed={on} onClick={() => save({ ...s, design: d.id })}
-                  className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition-colors ${on ? "border-forest bg-forest-soft" : "border-line bg-paper hover:border-forest"}`}>
+                  className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition-colors ${on ? "border-brand bg-brand-soft" : "border-line bg-surface hover:border-brand"}`}>
                   <span className="flex overflow-hidden rounded-md border border-line" aria-hidden="true">
                     <span className="h-7 w-4" style={{ background: d.dark }} />
                     <span className="h-7 w-4" style={{ background: d.light }} />
@@ -105,7 +105,7 @@ export function SettingsPanel({ initial, aiMode, onSaved }: { initial: Productio
         </div>
       </div>
       {aiMode === "demo" && (
-        <p className="mt-5 border-t border-line pt-4 text-xs leading-relaxed text-[#8a5a0b]">
+        <p className="mt-5 border-t border-line pt-4 text-xs leading-relaxed text-warn">
           지금은 API 키가 없는 데모 모드라 준비된 원고를 보여 줍니다. 채널 선택과 디자인은 그대로 반영되지만, 컨셉·타깃 고객·제품 정보 메모는 실제 생성(API 키)에서만 문구에 반영됩니다.
         </p>
       )}

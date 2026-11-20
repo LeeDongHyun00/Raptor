@@ -100,7 +100,7 @@ export function RunView({ initial, disclosure, adHashtag, emailFooter, different
       </div>
 
       {run.status === "approved" && (
-        <p className="rounded-xl border border-forest/20 bg-forest-soft px-4 py-3 text-sm leading-relaxed text-forest">
+        <p className="rounded-xl border border-brand/20 bg-brand-soft px-4 py-3 text-sm leading-relaxed text-brand">
           승인된 결과물입니다. 블로그 글은 복사하거나 HTML로 내보내고, 카드뉴스는 PNG로 내려받아 직접 업로드하세요.
         </p>
       )}
@@ -117,10 +117,10 @@ export function RunView({ initial, disclosure, adHashtag, emailFooter, different
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0 space-y-4">
             <div className="-mx-1 overflow-x-auto px-1 pb-1">
-              <div role="tablist" className="flex w-max gap-1 rounded-full border border-line bg-paper p-1 text-sm font-bold">
+              <div role="tablist" className="flex w-max gap-1 rounded-full border border-line bg-surface p-1 text-sm font-bold">
                 {tabs.map(([k, label]) => (
                   <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
-                    className={`whitespace-nowrap rounded-full px-4 py-2 transition-colors ${tab === k ? "bg-forest text-cream" : "text-mute hover:text-ink"}`}>
+                    className={`whitespace-nowrap rounded-full px-4 py-2 transition-colors ${tab === k ? "bg-brand text-canvas" : "text-mute hover:text-ink"}`}>
                     {label}
                   </button>
                 ))}
@@ -144,7 +144,7 @@ export function RunView({ initial, disclosure, adHashtag, emailFooter, different
                 </p>
                 <ol className="mt-3 space-y-3">
                   {run.revisions.map((rv) => (
-                    <li key={`${rv.round}-${rv.channels?.join() ?? ""}`} className="rounded-xl bg-cream p-3 text-xs leading-relaxed">
+                    <li key={`${rv.round}-${rv.channels?.join() ?? ""}`} className="rounded-xl bg-canvas p-3 text-xs leading-relaxed">
                       <p className="font-bold">
                         {rv.channels?.length
                           ? `채널 보완 · ${rv.channels.map((c) => CHANNEL_LABEL[c]).join(", ")} 재생성`
@@ -177,7 +177,7 @@ function Progress({ run }: { run: Run }) {
         {STEPS.map((s) => {
           const state = done.has(s) ? "done" : s === current ? "now" : "todo";
           return (
-            <li key={s} className={`rounded-xl border px-3 py-2.5 text-sm font-bold ${state === "done" ? "border-forest/20 bg-forest-soft text-forest" : state === "now" ? "animate-pulse border-horn/50 bg-horn-soft text-[#8a5a0b]" : "border-line bg-cream text-mute"}`}>
+            <li key={s} className={`rounded-xl border px-3 py-2.5 text-sm font-bold ${state === "done" ? "border-brand/20 bg-brand-soft text-brand" : state === "now" ? "animate-pulse border-accent/50 bg-accent-soft text-warn" : "border-line bg-canvas text-mute"}`}>
               <span className="block text-xs font-semibold opacity-70">{state === "done" ? "완료" : state === "now" ? "진행 중" : "대기"}</span>
               {s}
             </li>
@@ -196,7 +196,7 @@ function Logs({ run }: { run: Run }) {
     <ol className="space-y-2.5">
       {run.logs.map((l, i) => (
         <li key={i} className="flex gap-2.5 text-sm leading-relaxed">
-          <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-forest" />
+          <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand" />
           <span><strong className="font-bold">{l.step}</strong> <span className="text-mute">{l.message}</span></span>
         </li>
       ))}
@@ -207,7 +207,7 @@ function Logs({ run }: { run: Run }) {
 function Check({ pass, label, detail }: { pass: boolean; label: string; detail?: string }) {
   return (
     <li className="flex gap-2.5 py-2">
-      <span aria-hidden="true" className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold ${pass ? "bg-forest text-cream" : "bg-bad text-white"}`}>
+      <span aria-hidden="true" className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold ${pass ? "bg-brand text-canvas" : "bg-bad text-white"}`}>
         {pass ? "✓" : "!"}
       </span>
       <span className="min-w-0 text-sm leading-snug">
@@ -223,10 +223,10 @@ function Checklist({ review, hasBlog, hasCards, edited }: { review: Review; hasB
   const all = review.passed === review.total;
   return (
     <Panel title="가이드라인 충족도" action={<Badge tone={all ? "good" : "bad"}>{review.passed} / {review.total}</Badge>}>
-      <div className="h-2 overflow-hidden rounded-full bg-cream">
-        <div className={`h-full rounded-full ${all ? "bg-forest" : "bg-horn"}`} style={{ width: `${(review.passed / review.total) * 100}%` }} />
+      <div className="h-2 overflow-hidden rounded-full bg-canvas">
+        <div className={`h-full rounded-full ${all ? "bg-brand" : "bg-accent"}`} style={{ width: `${(review.passed / review.total) * 100}%` }} />
       </div>
-      {edited && <p className="mt-3 rounded-lg bg-horn-soft px-3 py-2 text-xs leading-relaxed text-[#8a5a0b]">직접 수정한 뒤 다시 검수한 결과입니다.</p>}
+      {edited && <p className="mt-3 rounded-lg bg-accent-soft px-3 py-2 text-xs leading-relaxed text-warn">직접 수정한 뒤 다시 검수한 결과입니다.</p>}
       <p className="mb-1 mt-4 text-xs font-bold text-mute">공통·블로그·인스타그램 · 코드 검사</p>
       <ul className="divide-y divide-line/60">
         {review.keywordChecks.map((k) => (
@@ -346,7 +346,7 @@ function BlogTab({ run, disclosure, onChange }: { run: Run; disclosure: string; 
   }
 
   const editing = !!draft;
-  const field = "w-full rounded-lg border border-line bg-white px-3 py-2 leading-relaxed focus:border-forest focus:outline-none";
+  const field = "w-full rounded-lg border border-line bg-white px-3 py-2 leading-relaxed focus:border-brand focus:outline-none";
   const setSection = (i: number, patch: (s: Blog["sections"][number]) => Blog["sections"][number]) =>
     setDraft((d) => (d ? { ...d, sections: d.sections.map((s, k) => (k === i ? patch(s) : s)) } : d));
 
@@ -382,10 +382,10 @@ function BlogTab({ run, disclosure, onChange }: { run: Run; disclosure: string; 
       }
     >
       {!editing && (
-        <div className="sticky top-16 z-10 mx-auto mb-4 max-w-2xl rounded-xl border border-horn/40 bg-horn-soft p-3 text-sm">
+        <div className="sticky top-16 z-10 mx-auto mb-4 max-w-2xl rounded-xl border border-accent/40 bg-accent-soft p-3 text-sm">
           {sel ? (
             <>
-              <p className="text-xs font-bold text-[#8a5a0b]">선택한 부분</p>
+              <p className="text-xs font-bold text-warn">선택한 부분</p>
               <p className="mt-1 line-clamp-3 leading-relaxed">“{sel.text}”</p>
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
                 <button className={btn.primary} disabled={advice.loading || saving} onClick={ask}>{advice.loading ? "추천을 만드는 중…" : "AI 수정 방향 추천"}</button>
@@ -394,22 +394,22 @@ function BlogTab({ run, disclosure, onChange }: { run: Run; disclosure: string; 
               {advice.items.length > 0 && (
                 <ol className="mt-3 space-y-2">
                   {advice.items.map((it, i) => (
-                    <li key={i} className="rounded-lg bg-paper p-3">
+                    <li key={i} className="rounded-lg bg-surface p-3">
                       <p className="text-sm font-semibold leading-relaxed">{i + 1}. {it.direction}</p>
                       {it.rewrite && (
                         <div className="mt-2 flex flex-wrap items-start justify-between gap-2">
-                          <p className="min-w-0 flex-1 rounded-md bg-forest-soft px-3 py-2 text-sm leading-relaxed">{it.rewrite}</p>
+                          <p className="min-w-0 flex-1 rounded-md bg-brand-soft px-3 py-2 text-sm leading-relaxed">{it.rewrite}</p>
                           <button className={btn.ghost} disabled={saving} onClick={() => apply(it.rewrite!)}>이렇게 바꾸기</button>
                         </div>
                       )}
                     </li>
                   ))}
-                  {advice.mode === "demo" && <li className="text-xs leading-relaxed text-[#8a5a0b]">API 키가 없는 데모에서는 문장 특성에 따른 일반 조언만 보여 줍니다. 키가 있으면 선택한 문장을 방향별로 다시 써 줍니다.</li>}
+                  {advice.mode === "demo" && <li className="text-xs leading-relaxed text-warn">API 키가 없는 데모에서는 문장 특성에 따른 일반 조언만 보여 줍니다. 키가 있으면 선택한 문장을 방향별로 다시 써 줍니다.</li>}
                 </ol>
               )}
             </>
           ) : (
-            <p className="leading-relaxed text-[#6d4708]">고치고 싶은 문장을 <strong>드래그해서 선택</strong>하면 AI가 수정 방향을 추천합니다. 문장 전체를 손보려면 ‘직접 수정’을 누르세요.</p>
+            <p className="leading-relaxed text-warn">고치고 싶은 문장을 <strong>드래그해서 선택</strong>하면 AI가 수정 방향을 추천합니다. 문장 전체를 손보려면 ‘직접 수정’을 누르세요.</p>
           )}
           {error && <p role="alert" className="mt-2 text-xs text-bad">{error}</p>}
         </div>
@@ -417,7 +417,7 @@ function BlogTab({ run, disclosure, onChange }: { run: Run; disclosure: string; 
       {editing && error && <p role="alert" className="mx-auto mb-3 max-w-2xl text-xs text-bad">{error}</p>}
 
       <article className="mx-auto max-w-2xl" onMouseUp={editing ? undefined : readSelection} onTouchEnd={editing ? undefined : readSelection} onKeyUp={editing ? undefined : readSelection}>
-        <p className="rounded-lg border border-line bg-cream px-3 py-2 text-xs text-mute">{disclosure}</p>
+        <p className="rounded-lg border border-line bg-canvas px-3 py-2 text-xs text-mute">{disclosure}</p>
         {editing ? (
           <label className="mt-5 block">
             <span className="text-xs font-bold text-mute">제목</span>
@@ -445,7 +445,7 @@ function BlogTab({ run, disclosure, onChange }: { run: Run; disclosure: string; 
                   {s.heading}
                   {revised.has(i) && <Badge tone="warn">자동 보완됨</Badge>}
                 </h3>
-                {s.paragraphs.map((p, j) => <p key={j} data-sec={i} data-par={j} className="mt-3 text-[15px] leading-[1.9] text-[#26332c]">{p}</p>)}
+                {s.paragraphs.map((p, j) => <p key={j} data-sec={i} data-par={j} className="mt-3 text-[15px] leading-[1.9] text-ink">{p}</p>)}
               </>
             )}
             {s.screenshotId && (
@@ -457,7 +457,7 @@ function BlogTab({ run, disclosure, onChange }: { run: Run; disclosure: string; 
             )}
           </section>
         ))}
-        <p className="mt-8 text-sm font-semibold text-forest">{blog.tags.map((t) => `#${t}`).join(" ")}</p>
+        <p className="mt-8 text-sm font-semibold text-brand">{blog.tags.map((t) => `#${t}`).join(" ")}</p>
       </article>
       <p className="mt-6 border-t border-line pt-4 text-xs leading-relaxed text-mute">
         수정한 내용은 저장할 때 가이드라인 검수를 다시 거칩니다. ‘글 복사’는 서식과 함께 본문을 복사하며 화면 캡처는 포함되지 않으니 블로그 편집기에서 직접 올려 주세요. ‘HTML 내보내기’ 파일에는 이미지가 함께 들어 있습니다.
@@ -511,7 +511,7 @@ function CardsTab({ run, disclosure, adHashtag }: { run: Run; disclosure: string
           {cards.slides.map((s, i) => (
             <li key={i}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={cardUrl(run, i)} alt={`${i + 1}번 카드: ${s.title}`} width={1080} height={1350} loading="lazy" className="h-auto w-full rounded-xl border border-line bg-cream" />
+              <img src={cardUrl(run, i)} alt={`${i + 1}번 카드: ${s.title}`} width={1080} height={1350} loading="lazy" className="h-auto w-full rounded-xl border border-line bg-canvas" />
               <a href={cardUrl(run, i, true)} download={`card-${String(i + 1).padStart(2, "0")}.png`} className="mt-1.5 block text-center text-xs font-semibold text-mute hover:text-ink">{i + 1}번 PNG 받기</a>
             </li>
           ))}
@@ -545,9 +545,9 @@ function PlanTab({ run, differentiators }: { run: Run; differentiators: { id: st
             ))}
           </div>
           {voc.quotes.length > 0 && (
-            <div className="mt-4 rounded-xl bg-cream p-4">
+            <div className="mt-4 rounded-xl bg-canvas p-4">
               <p className="text-xs font-bold text-mute">내부 확인용 · 외부 콘텐츠에는 쓰지 않음</p>
-              <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-[#33423a]">
+              <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-ink">
                 {voc.quotes.map((q, i) => <li key={i}>“{q}”</li>)}
               </ul>
             </div>
@@ -567,18 +567,18 @@ function PlanTab({ run, differentiators }: { run: Run; differentiators: { id: st
       }>
         <p className="text-sm leading-relaxed">{plan.reason}</p>
         {plan.coreMessage && (
-          <p className="mt-4 rounded-xl border border-horn/40 bg-horn-soft p-4 text-sm leading-relaxed">
-            <span className="block text-xs font-bold text-[#8a5a0b]">모든 채널이 반복하는 핵심 메시지</span>
+          <p className="mt-4 rounded-xl border border-accent/40 bg-accent-soft p-4 text-sm leading-relaxed">
+            <span className="block text-xs font-bold text-warn">모든 채널이 반복하는 핵심 메시지</span>
             <strong className="mt-1 block text-base font-extrabold">{plan.coreMessage}</strong>
           </p>
         )}
         <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl bg-cream p-4">
+          <div className="rounded-xl bg-canvas p-4">
             <dt className="text-xs font-bold text-mute">풀어 가는 관점</dt>
             <dd className="mt-1.5 text-sm leading-relaxed">{plan.angle}</dd>
           </div>
-          <div className="rounded-xl bg-forest-soft p-4">
-            <dt className="text-xs font-bold text-forest">연결한 차별점</dt>
+          <div className="rounded-xl bg-brand-soft p-4">
+            <dt className="text-xs font-bold text-brand">연결한 차별점</dt>
             <dd className="mt-1.5 flex flex-wrap gap-1.5">
               {plan.differentiatorIds.map((id) => (
                 <Badge key={id} tone="solid">{differentiators.find((d) => d.id === id)?.title ?? id}</Badge>
@@ -595,8 +595,8 @@ function PlanTab({ run, differentiators }: { run: Run; differentiators: { id: st
               ["2. 비교·검토 잡기", "블로그 · 검색광고", "검색 의도에 답하는 글과 구매 의도 키워드"],
               ["3. 전환·재방문", "이메일", "관심을 보인 사람에게 행동 하나만 요청"],
             ].map(([stage, channels, how]) => (
-              <li key={stage} className="rounded-xl bg-cream p-4">
-                <p className="text-xs font-bold text-forest">{stage}</p>
+              <li key={stage} className="rounded-xl bg-canvas p-4">
+                <p className="text-xs font-bold text-brand">{stage}</p>
                 <p className="mt-1.5 text-sm font-bold leading-snug">{channels}</p>
                 <p className="mt-1 text-xs leading-relaxed text-mute">{how}</p>
               </li>
@@ -611,8 +611,8 @@ function PlanTab({ run, differentiators }: { run: Run; differentiators: { id: st
             return (
               <li key={t.keyword} className="grid grid-cols-[minmax(0,9rem)_1fr_3.5rem] items-center gap-3 text-sm">
                 <span className={`truncate ${picked ? "font-extrabold" : "text-mute"}`}>{t.keyword}</span>
-                <span className="h-2.5 overflow-hidden rounded-full bg-cream">
-                  <span className={`block h-full rounded-full ${t.change < 0 ? "bg-line" : picked ? "bg-horn" : "bg-forest/50"}`} style={{ width: `${Math.max((Math.abs(t.change) / max) * 100, 3)}%` }} />
+                <span className="h-2.5 overflow-hidden rounded-full bg-canvas">
+                  <span className={`block h-full rounded-full ${t.change < 0 ? "bg-line" : picked ? "bg-accent" : "bg-brand/50"}`} style={{ width: `${Math.max((Math.abs(t.change) / max) * 100, 3)}%` }} />
                 </span>
                 <span className={`text-right tabular-nums ${picked ? "font-extrabold" : "text-mute"}`}>{t.change > 0 ? "+" : ""}{t.change}%</span>
               </li>
@@ -663,23 +663,23 @@ function EmailTab({ run, channels, footer }: { run: Run; channels: Channels; foo
       <p className="text-xs font-bold text-mute">제목 A/B 후보 · 선택한 제목으로 미리보기와 내보내기가 바뀝니다</p>
       <div className="mt-2 space-y-2">
         {email.subjects.map((sub, i) => (
-          <label key={i} className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm ${pick === i ? "border-forest bg-forest-soft" : "border-line bg-cream/50"}`}>
-            <input type="radio" name="subject" checked={pick === i} onChange={() => setPick(i)} className="accent-[#1f4d3a]" />
+          <label key={i} className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm ${pick === i ? "border-brand bg-brand-soft" : "border-line bg-canvas/50"}`}>
+            <input type="radio" name="subject" checked={pick === i} onChange={() => setPick(i)} className="accent-brand" />
             <span className="font-bold text-mute">{String.fromCharCode(65 + i)}</span>
             <span className="min-w-0 flex-1 font-semibold">{emailSubject(sub)}</span>
             <Count text={sub} max={LIMITS.emailSubject} />
           </label>
         ))}
       </div>
-      <div className="mx-auto mt-6 max-w-md overflow-hidden rounded-2xl border border-line bg-white">
-        <div className="border-b border-line bg-cream/60 px-5 py-3">
+      <div className="mx-auto mt-6 max-w-md overflow-hidden rounded-xl border border-line bg-white">
+        <div className="border-b border-line bg-canvas/60 px-5 py-3">
           <p className="text-sm font-bold leading-snug">{subject}</p>
           <p className="mt-0.5 text-xs text-mute">{email.preheader}</p>
         </div>
         <div className="space-y-3 px-5 py-5 text-[15px] leading-[1.8]">
           <p>{email.greeting}</p>
           {email.paragraphs.map((p, i) => <p key={i}>{p}</p>)}
-          <p className="pt-2"><span className="inline-block rounded-full bg-forest px-6 py-3 text-sm font-bold text-cream">{email.ctaLabel}</span></p>
+          <p className="pt-2"><span className="inline-block rounded-full bg-brand px-6 py-3 text-sm font-bold text-canvas">{email.ctaLabel}</span></p>
         </div>
         <p className="border-t border-line px-5 py-3 text-[11px] leading-relaxed text-mute">{footer}</p>
       </div>
@@ -695,9 +695,9 @@ function KakaoTab({ run, channels }: { run: Run; channels: Channels }) {
     <Panel title="카카오톡 배너(비즈보드)">
       <ul className="space-y-5">
         {channels.kakao.map((k, i) => (
-          <li key={i} className="rounded-xl border border-line bg-cream/40 p-4">
+          <li key={i} className="rounded-xl border border-line bg-canvas/40 p-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={bannerUrl(run, i)} alt={`배너 소재 ${i + 1}: ${k.copy}`} width={1029} height={258} loading="lazy" className="h-auto w-full rounded-lg border border-line bg-cream" />
+            <img src={bannerUrl(run, i)} alt={`배너 소재 ${i + 1}: ${k.copy}`} width={1029} height={258} loading="lazy" className="h-auto w-full rounded-lg border border-line bg-canvas" />
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Badge tone="solid">소재 {i + 1}</Badge>
               <Badge tone="warn">{k.hook}</Badge>
@@ -729,26 +729,26 @@ function ShortsTab({ channels }: { channels: Channels }) {
       </div>
       <ol className="mt-4 space-y-3">
         {sh.scenes.map((sc, i) => (
-          <li key={i} className="grid gap-3 rounded-xl border border-line bg-cream/40 p-4 sm:grid-cols-[5.5rem_1fr]">
+          <li key={i} className="grid gap-3 rounded-xl border border-line bg-canvas/40 p-4 sm:grid-cols-[5.5rem_1fr]">
             <div>
-              <p className="text-xs font-bold text-forest">{i === 0 ? "훅" : `장면 ${i + 1}`}</p>
+              <p className="text-xs font-bold text-brand">{i === 0 ? "훅" : `장면 ${i + 1}`}</p>
               <p className="text-sm font-extrabold tabular-nums">{starts[i]}~{starts[i] + sc.seconds}초</p>
             </div>
             <dl className="space-y-1.5 text-sm leading-relaxed">
               <div><dt className="inline text-xs font-bold text-mute">화면 </dt><dd className="inline">{sc.visual}</dd></div>
               <div><dt className="inline text-xs font-bold text-mute">대사 </dt><dd className="inline">“{sc.narration}”</dd></div>
-              <div><dt className="inline text-xs font-bold text-mute">자막 </dt><dd className="inline"><span className="rounded bg-ink px-2 py-0.5 text-xs font-bold text-cream">{sc.overlay}</span></dd></div>
+              <div><dt className="inline text-xs font-bold text-mute">자막 </dt><dd className="inline"><span className="rounded bg-ink px-2 py-0.5 text-xs font-bold text-canvas">{sc.overlay}</span></dd></div>
             </dl>
           </li>
         ))}
       </ol>
       <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl bg-cream p-4">
+        <div className="rounded-xl bg-canvas p-4">
           <dt className="text-xs font-bold text-mute">다시 보게 만드는 루프</dt>
           <dd className="mt-1.5 text-sm leading-relaxed">{sh.loop}</dd>
         </div>
-        <div className="rounded-xl bg-forest-soft p-4">
-          <dt className="text-xs font-bold text-forest">고정 댓글</dt>
+        <div className="rounded-xl bg-brand-soft p-4">
+          <dt className="text-xs font-bold text-brand">고정 댓글</dt>
           <dd className="mt-1.5 text-sm leading-relaxed">{sh.pinnedComment}</dd>
         </div>
       </dl>
@@ -775,11 +775,11 @@ function SearchTab({ channels }: { channels: Channels }) {
         ))}
       </ul>
       <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl bg-forest-soft p-4">
-          <dt className="text-xs font-bold text-forest">구매 의도 키워드</dt>
+        <div className="rounded-xl bg-brand-soft p-4">
+          <dt className="text-xs font-bold text-brand">구매 의도 키워드</dt>
           <dd className="mt-2 flex flex-wrap gap-1.5">{ads.keywords.map((k) => <Badge key={k} tone="solid">{k}</Badge>)}</dd>
         </div>
-        <div className="rounded-xl bg-cream p-4">
+        <div className="rounded-xl bg-canvas p-4">
           <dt className="text-xs font-bold text-mute">제외 키워드</dt>
           <dd className="mt-2 flex flex-wrap gap-1.5">{ads.negativeKeywords.map((k) => <Badge key={k}>{k}</Badge>)}</dd>
         </div>

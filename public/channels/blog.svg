@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360">
+<rect width="480" height="360" fill="#f3f5f8"/>
+<rect x="70" y="36" width="340" height="300" rx="10" fill="#fff" stroke="#dce2ea"/>
+<rect x="70" y="36" width="340" height="30" rx="10" fill="#e7eefa"/><rect x="70" y="56" width="340" height="10" fill="#e7eefa"/>
+<circle cx="88" cy="51" r="4" fill="#b9c3d1"/><circle cx="102" cy="51" r="4" fill="#b9c3d1"/><circle cx="116" cy="51" r="4" fill="#b9c3d1"/>
+<rect x="96" y="84" width="32" height="12" rx="3" fill="#dce2ea"/>
+<rect x="96" y="106" width="250" height="14" rx="4" fill="#0f1a2a"/><rect x="96" y="126" width="170" height="14" rx="4" fill="#0f1a2a"/>
+<rect x="96" y="154" width="288" height="7" rx="3" fill="#b9c3d1"/><rect x="96" y="167" width="270" height="7" rx="3" fill="#b9c3d1"/><rect x="96" y="180" width="200" height="7" rx="3" fill="#b9c3d1"/>
+<rect x="96" y="200" width="288" height="84" rx="6" fill="#e7eefa"/>
+<path d="M120 270 L160 228 L190 254 L214 236 L262 270 Z" fill="#1648a8" opacity=".55"/><circle cx="330" cy="226" r="11" fill="#ffb320"/>
+<rect x="96" y="298" width="56" height="16" rx="8" fill="#e7eefa"/><rect x="158" y="298" width="68" height="16" rx="8" fill="#e7eefa"/><rect x="232" y="298" width="48" height="16" rx="8" fill="#e7eefa"/>
+</svg>

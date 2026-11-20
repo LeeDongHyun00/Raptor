@@ -17,7 +17,7 @@ import { loadStoredKey } from "./apiKeyStore";
  */
 
 export const isStaticDemo = process.env.NEXT_PUBLIC_STATIC_DEMO === "1";
-const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+export const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
 export interface Modes {
   ai: "live" | "demo";
@@ -25,7 +25,7 @@ export interface Modes {
   storage: "supabase" | "file" | "ephemeral" | "browser";
 }
 
-const STATIC_NOTICE = "GitHub Pages 데모에서는 사용할 수 없는 기능입니다. 서버에 배포한 버전에서 이용해 주세요.";
+const STATIC_NOTICE = "데모 버전에서는 사용할 수 없는 기능입니다.";
 
 /* ---------- browser-only store ---------- */
 
