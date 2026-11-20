@@ -12,7 +12,11 @@ const chip = (on: boolean) =>
 const field = "w-full rounded-lg border border-line bg-white px-3 py-2 text-sm leading-relaxed focus:border-brand focus:outline-none";
 
 /** Filters applied to the next run: which channels, which tone and look, for whom. */
-export function SettingsPanel({ initial, aiMode, onSaved }: { initial: ProductionSettings; aiMode: "live" | "demo"; onSaved: () => void }) {
+export function SettingsPanel({ initial, aiMode, onSaved, footer }: {
+  initial: ProductionSettings; aiMode: "live" | "demo"; onSaved: () => void;
+  /** Run controls shown under the settings, so choosing and starting happen in one place. */
+  footer?: React.ReactNode;
+}) {
   const [s, setS] = useState(initial);
   const [state, setState] = useState<"idle" | "saved" | "error">("idle");
 
@@ -32,6 +36,7 @@ export function SettingsPanel({ initial, aiMode, onSaved }: { initial: Productio
   return (
     <Panel
       title="제작 설정"
+      eyebrow="Settings"
       action={<span role="status" className="text-xs text-mute">{state === "saved" ? "저장했습니다 · 다음 실행부터 적용" : state === "error" ? <span className="text-bad">저장하지 못했습니다</span> : "다음 실행에 적용됩니다"}</span>}
     >
       <div className="grid gap-6 lg:grid-cols-2">
@@ -105,6 +110,7 @@ export function SettingsPanel({ initial, aiMode, onSaved }: { initial: Productio
           </label>
         </div>
       </div>
+      {footer && <div className="mt-6 rounded-xl bg-canvas p-4">{footer}</div>}
       {aiMode === "demo" && (
         <p className="mt-5 border-t border-line pt-4 text-xs leading-relaxed text-warn">
           API 키가 없어 준비된 원고를 보여 줍니다. 채널 선택과 디자인은 그대로 반영되지만, 컨셉·타깃 고객·제품 정보 메모는 <button type="button" className="font-bold underline" onClick={openKeyPanel}>API 키를 입력</button>해 실제로 생성할 때 문구에 반영됩니다.

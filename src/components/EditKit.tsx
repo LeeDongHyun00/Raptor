@@ -92,7 +92,7 @@ export function EditArea({ run, onChange, children }: { run: Run; onChange: (run
 
   return (
     <Ctx.Provider value={{ content, draft, edit: (path, value) => setDraft((d) => (d ? setAt(d, path, value) : d)) }}>
-      <div className="sticky top-14 z-10 rounded-xl border border-accent/40 bg-accent-soft p-3 text-sm shadow-sm">
+      <div className="sticky top-28 z-10 lg:top-4 rounded-xl border border-accent/40 bg-accent-soft p-3 text-sm shadow-sm">
         {draft ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="leading-relaxed text-warn">문구를 직접 고치는 중입니다. 저장하면 가이드라인 검수를 다시 거칩니다.</p>

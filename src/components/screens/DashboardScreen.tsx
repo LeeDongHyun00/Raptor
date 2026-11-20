@@ -9,6 +9,7 @@ import { ResetHistoryButton, RunNowButton } from "../RunControls";
 import { SettingsPanel } from "../SettingsPanel";
 import { RunImage } from "../RunImage";
 import { resolveSettings } from "@/lib/settings";
+import { fmtDuration, totalDuration } from "@/lib/timing";
 
 const FLOW = [
   { n: "1", title: "차별점 분석", body: "제안서·매뉴얼에서 강점을 뽑고 근거 페이지를 표시" },
@@ -38,6 +39,9 @@ export function DashboardScreen() {
   const pending = runs.filter((r) => r.status === "pending" || r.status === "running");
   const next = nextRunAt(runs);
   const used = runs.filter((r) => r.plan && r.status !== "failed");
+  // How long the most recent finished run took, as a reference for the next one.
+  const lastDone = runs.find((r) => r.status !== "running" && r.status !== "failed");
+  const lastMs = lastDone ? totalDuration(lastDone) : null;
   // Latest non-failed run per customer question.
   const answered: Record<string, (typeof runs)[number]> = {};
   for (const r of [...runs].reverse()) if (r.status !== "failed" && r.plan?.vocId) answered[r.plan.vocId] = r;
@@ -54,19 +58,6 @@ export function DashboardScreen() {
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-surface/80">
               고객이 통화에서 실제로 물어본 질문과 요즘 트렌드를 엮어 채널별 소재를 만들고, 검수까지 마쳐 승인함에 올립니다.
             </p>
-            <div className="mt-6 flex flex-wrap items-center gap-4">
-              <RunNowButton />
-              <p className="text-sm text-surface/80">
-                다음 자동 실행 <strong className="font-bold text-surface">{next ? fmtDate(next) : "첫 실행 후 2주 뒤"}</strong>
-                <span className="text-surface/60"> · {INTERVAL_DAYS}일 주기</span>
-              </p>
-            </div>
-            {modes.ai !== "live" && (
-              <p className="mt-5 inline-flex items-center gap-2 text-xs text-surface/70">
-                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                데모 모드 · 회사 문서로 미리 준비한 원고가 생성됩니다
-              </p>
-            )}
           </div>
           <dl className="grid grid-cols-3 gap-3 self-end lg:grid-cols-1">
             <Stat label="승인 대기" value={pending.length} unit="건" />
@@ -75,6 +66,22 @@ export function DashboardScreen() {
           </dl>
         </div>
       </section>
+
+      <SettingsPanel
+        initial={resolveSettings(ws.settings)}
+        aiMode={modes.ai}
+        onSaved={reload}
+        footer={
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+            <RunNowButton label="이 설정으로 지금 실행" />
+            <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-mute">
+              <div className="flex gap-1.5"><dt>예상 소요</dt><dd className="font-bold text-ink">{modes.ai === "live" ? "보통 1~3분" : "약 5초"}</dd></div>
+              {lastMs != null && <div className="flex gap-1.5"><dt>지난 실행</dt><dd className="font-bold text-ink">{fmtDuration(lastMs)}</dd></div>}
+              <div className="flex gap-1.5"><dt>다음 자동 실행</dt><dd className="font-bold text-ink">{next ? fmtDate(next) : "첫 실행 후 2주 뒤"} · {INTERVAL_DAYS}일 주기</dd></div>
+            </dl>
+          </div>
+        }
+      />
 
       <section aria-labelledby="flow-title">
         <SectionHead eyebrow="How it works" id="flow-title" title="분석부터 승인까지, 5단계로 진행됩니다" />
@@ -88,8 +95,6 @@ export function DashboardScreen() {
           ))}
         </ol>
       </section>
-
-      <SettingsPanel initial={resolveSettings(ws.settings)} aiMode={modes.ai} onSaved={reload} />
 
       <section aria-labelledby="channel-title">
         <SectionHead eyebrow="Channels" id="channel-title" title="한 메시지, 6개 채널" />

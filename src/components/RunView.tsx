@@ -6,6 +6,7 @@ import type { Review, Run } from "@/lib/types";
 import { conceptOf, designOf, resolveSettings } from "@/lib/settings";
 import { CHANNEL_LABEL } from "@/lib/review";
 import { STEPS } from "@/lib/pipelineCore";
+import { fmtDuration, logDurations, stepDurations, totalDuration } from "@/lib/timing";
 import { decideRun, getRun, isStaticDemo } from "@/lib/client/api";
 import { EditArea } from "./EditKit";
 import { BlogTab, CardsTab, EmailTab, KakaoTab, SearchTab, ShortsTab } from "./RunTabs";
@@ -76,6 +77,7 @@ export function RunView({ initial, disclosure, adHashtag, emailFooter, different
             </h1>
             <p className="mt-1 text-sm text-mute">
               {fmtDate(run.createdAt, true)} · {run.trigger === "cron" ? "격주 자동 실행" : "수동 실행"}
+              {run.status !== "running" && totalDuration(run) != null && ` · 소요 ${fmtDuration(totalDuration(run)!)}`}
               {run.decidedAt && ` · ${fmtDate(run.decidedAt, true)} ${run.status === "approved" ? "승인" : "반려"}`}
             </p>
           </div>
@@ -172,7 +174,7 @@ export function RunView({ initial, disclosure, adHashtag, emailFooter, different
                 </ol>
               </Panel>
             )}
-            <Panel title="진행 기록">
+            <Panel title="진행 기록" action={totalDuration(run) != null ? <Badge>총 소요 {fmtDuration(totalDuration(run)!)}</Badge> : undefined}>
               <Logs run={run} />
             </Panel>
           </aside>
@@ -182,17 +184,37 @@ export function RunView({ initial, disclosure, adHashtag, emailFooter, different
   );
 }
 
+/** Milliseconds since `since`, ticking while `active`; the clock only runs in an effect, never during render. */
+function useElapsed(since: string, active: boolean): number {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    if (!active) return;
+    const tick = () => setNow(Date.now());
+    const first = setTimeout(tick, 0);
+    const t = setInterval(tick, 200);
+    return () => { clearTimeout(first); clearInterval(t); };
+  }, [active]);
+  return now === null ? 0 : Math.max(0, now - new Date(since).getTime());
+}
+
 function Progress({ run }: { run: Run }) {
   const done = new Set(run.logs.map((l) => l.step));
   const current = STEPS.find((s) => !done.has(s));
+  const spent = stepDurations(run);
+  const elapsed = useElapsed(run.createdAt, true);
+  // The step in progress has been running since the last finished one.
+  const currentMs = Math.max(0, elapsed - (totalDuration(run) ?? 0));
   return (
-    <Panel title="진행 상황">
-      <ol className="grid gap-2 sm:grid-cols-6">
+    <Panel title="진행 상황" action={<span className="text-sm text-mute">경과 시간 <strong className="font-extrabold tabular-nums text-ink">{fmtDuration(elapsed)}</strong></span>}>
+      <ol className="grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
         {STEPS.map((s) => {
           const state = done.has(s) ? "done" : s === current ? "now" : "todo";
           return (
-            <li key={s} className={`rounded-xl border px-3 py-2.5 text-sm font-bold ${state === "done" ? "border-brand/20 bg-brand-soft text-brand" : state === "now" ? "animate-pulse border-accent/50 bg-accent-soft text-warn" : "border-line bg-canvas text-mute"}`}>
-              <span className="block text-xs font-semibold opacity-70">{state === "done" ? "완료" : state === "now" ? "진행 중" : "대기"}</span>
+            <li key={s} className={`rounded-xl border px-3 py-2.5 text-sm font-bold ${state === "done" ? "border-brand/20 bg-brand-soft text-brand" : state === "now" ? "border-accent/50 bg-accent-soft text-warn" : "border-line bg-canvas text-mute"}`}>
+              <span className="flex items-center justify-between gap-2 text-xs font-semibold opacity-80">
+                <span className={state === "now" ? "animate-pulse" : ""}>{state === "done" ? "완료" : state === "now" ? "진행 중" : "대기"}</span>
+                <span className="tabular-nums">{state === "done" ? fmtDuration(spent[s] ?? 0) : state === "now" ? fmtDuration(currentMs) : ""}</span>
+              </span>
               {s}
             </li>
           );
@@ -210,12 +232,14 @@ function Progress({ run }: { run: Run }) {
 
 function Logs({ run }: { run: Run }) {
   if (run.logs.length === 0) return <p className="text-sm text-mute">시작하는 중…</p>;
+  const took = logDurations(run);
   return (
     <ol className="space-y-2.5">
       {run.logs.map((l, i) => (
         <li key={i} className="flex gap-2.5 text-sm leading-relaxed">
           <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand" />
-          <span><strong className="font-bold">{l.step}</strong> <span className="text-mute">{l.message}</span></span>
+          <span className="min-w-0 flex-1"><strong className="font-bold">{l.step}</strong> <span className="text-mute">{l.message}</span></span>
+          <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-mute">{fmtDuration(took[i])}</span>
         </li>
       ))}
     </ol>

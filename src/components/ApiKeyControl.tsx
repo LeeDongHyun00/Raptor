@@ -47,14 +47,14 @@ export function ApiKeyControl() {
   const looksValid = /^sk-ant-[\w-]{20,}$/.test(key);
 
   return (
-    <div ref={boxRef} className="relative ml-auto">
+    <div ref={boxRef} className="relative">
       <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)}
-        className="my-2 flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold transition-colors hover:border-brand">
+        className="my-2 flex w-full items-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold transition-colors hover:border-brand">
         <span className={`h-2 w-2 rounded-full ${live ? "bg-ok" : "bg-accent-strong"}`} aria-hidden="true" />
         {live ? "AI 연결됨" : "API 키 입력"}
       </button>
       {open && (
-        <div role="dialog" aria-label="Anthropic API 키" className="absolute right-0 top-full z-30 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-line bg-surface p-4 shadow-lg">
+        <div role="dialog" aria-label="Anthropic API 키" className="absolute right-0 top-full z-30 w-[min(22rem,calc(100vw-2rem))] lg:bottom-full lg:left-0 lg:right-auto lg:top-auto lg:mb-1 rounded-xl border border-line bg-surface p-4 shadow-lg">
           <p className="text-sm font-bold">Anthropic API 키</p>
           {serverKey ? (
             <p className="mt-2 text-sm leading-relaxed text-mute">이 사이트에는 키가 설정되어 있어 따로 입력하지 않아도 됩니다.</p>
