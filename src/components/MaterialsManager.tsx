@@ -43,11 +43,6 @@ export function MaterialsManager({ materials, guideline, onChange }: { materials
 
   return (
     <div className="space-y-6">
-      {isStaticDemo && (
-        <p className="rounded-xl border border-horn/40 bg-horn-soft px-4 py-3 text-sm leading-relaxed text-[#6d4708]">
-          지금 보시는 것은 서버 없이 동작하는 <strong>GitHub Pages 데모</strong>입니다. 파일 업로드는 서버 배포 버전에서만 되고, 가이드라인 수정은 이 브라우저에 저장되어 다음 생성의 검수에 바로 반영됩니다.
-        </p>
-      )}
       {error && <p role="alert" className="rounded-xl border border-bad/20 bg-bad-soft px-4 py-3 text-sm text-bad">{error}</p>}
       <div className="grid gap-6 lg:grid-cols-2">
         {KINDS.map(({ kind, title, hint, accept }) => {
@@ -58,9 +53,9 @@ export function MaterialsManager({ materials, guideline, onChange }: { materials
               {kind === "screenshot" ? (
                 <ul className="grid grid-cols-2 gap-3">
                   {items.map((m) => (
-                    <li key={m.id} className="overflow-hidden rounded-xl border border-line bg-cream/50">
+                    <li key={m.id} className="overflow-hidden rounded-xl border border-line bg-canvas/50">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={assetUrl(m.id)} alt={m.description ?? m.name} className="aspect-video w-full bg-cream object-cover" />
+                      <img src={assetUrl(m.id)} alt={m.description ?? m.name} className="aspect-video w-full bg-canvas object-cover" />
                       <div className="p-3">
                         <div className="flex items-start justify-between gap-2">
                           <p className="break-all text-xs font-semibold leading-snug">{m.name}</p>
@@ -77,14 +72,14 @@ export function MaterialsManager({ materials, guideline, onChange }: { materials
                     <li key={m.id} className="flex items-center justify-between gap-3 py-2.5">
                       <div className="min-w-0">
                         <p className="break-all text-sm font-semibold">{m.name}</p>
-                        <p className="text-xs text-mute">{m.demo ? "미리 분석해 둔 회사 문서입니다. 원본 파일은 저장소에 포함하지 않습니다" : size(m.size)}</p>
+                        <p className="text-xs text-mute">{m.demo ? "미리 분석해 둔 회사 문서" : size(m.size)}</p>
                       </div>
                       {m.demo ? <Badge tone="good">기본 탑재</Badge> : <RemoveButton onClick={() => remove(m.id)} name={m.name} />}
                     </li>
                   ))}
                 </ul>
               )}
-              {items.length === 0 && <p className="rounded-xl bg-cream px-4 py-6 text-center text-sm text-mute">아직 올린 파일이 없습니다.</p>}
+              {items.length === 0 && <p className="rounded-xl bg-canvas px-4 py-6 text-center text-sm text-mute">아직 올린 파일이 없습니다.</p>}
               {kind === "doc" && items.some((m) => !m.demo) && (
                 <p className="mt-4 text-xs text-mute">문서를 바꿨다면 ‘차별점 분석’ 페이지에서 다시 분석을 실행하세요.</p>
               )}
@@ -109,7 +104,7 @@ function UploadButton({ accept, multiple, busy, onFiles, label = "파일 올리�
   return (
     <>
       <input ref={ref} type="file" accept={accept} multiple={multiple} hidden onChange={(e) => { onFiles(e.target.files); e.target.value = ""; }} />
-      <button className={btn.ghost} disabled={busy || isStaticDemo} title={isStaticDemo ? "서버 배포 버전에서 사용할 수 있습니다" : undefined} onClick={() => ref.current?.click()}>{busy ? "올리는 중…" : label}</button>
+      <button className={btn.ghost} disabled={busy || isStaticDemo} title={isStaticDemo ? "데모 버전에서는 파일을 올릴 수 없습니다" : undefined} onClick={() => ref.current?.click()}>{busy ? "올리는 중…" : label}</button>
     </>
   );
 }
@@ -119,7 +114,7 @@ function RemoveButton({ onClick, name }: { onClick: () => void; name: string }) 
 }
 
 const lines = (s: string) => s.split("\n").map((x) => x.trim()).filter(Boolean);
-const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-sm leading-relaxed focus:border-forest focus:outline-none";
+const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-sm leading-relaxed focus:border-brand focus:outline-none";
 
 function GuidelineEditor({ guideline, uploadButton, onSaved }: { guideline: Guideline; uploadButton: React.ReactNode; onSaved: () => void }) {
   const [keywords, setKeywords] = useState(guideline.requiredKeywords.map((k) => `${k.keyword} | ${k.minCount}`).join("\n"));
@@ -174,7 +169,7 @@ function GuidelineEditor({ guideline, uploadButton, onSaved }: { guideline: Guid
             <span className="ml-2 text-xs text-mute">본문, 공백 제외 · 0이면 기준 없음</span>
             <input className={`${input} mt-2 max-w-40 tabular-nums`} inputMode="numeric" value={minChars} onChange={(e) => { setMinChars(e.target.value.replace(/\D/g, "")); setState("idle"); }} />
           </label>
-          <p className="mt-4 rounded-xl bg-cream p-3 text-xs leading-relaxed text-mute">
+          <p className="mt-4 rounded-xl bg-canvas p-3 text-xs leading-relaxed text-mute">
             ‘광고’ 표기는 가이드라인과 관계없이 항상 자동으로 들어갑니다. 블로그는 본문 맨 위, 인스타그램은 첫 장 이미지와 본문 첫 줄·해시태그에 표시합니다.
           </p>
         </div>

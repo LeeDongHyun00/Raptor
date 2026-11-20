@@ -9,7 +9,7 @@ import { downloadHtml, generatePromo, isStaticDemo } from "@/lib/client/api";
 import { loadStoredKey, storeKey } from "@/lib/client/apiKeyStore";
 import { promoDocumentHtml } from "@/lib/studioHtml";
 import { AD_HASHTAG } from "@/lib/review";
-import { Badge, Panel, btn } from "../ui";
+import { Badge, PageHeader, Panel, btn } from "../ui";
 
 const MAX_PHOTOS = 6;
 // The server route sits behind Vercel's ~4.5 MB body cap; direct browser calls only face
@@ -109,19 +109,16 @@ export function StudioScreen() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">홍보 스튜디오</h1>
-        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-mute">
-          제품 문서와 사진을 올리면 AI(Claude Haiku 5.5)가 문서에서 기술적 차별점을 찾고, 사진을 배치한 홍보 페이지와 SNS 게시물을 한 번에 만듭니다.
-          올린 파일은 생성에만 쓰고 저장하지 않습니다.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Promo Studio"
+        title="문서는 AI에게, 홍보 페이지는 한 번에"
+        sub="제품 문서와 사진을 올리면 기술적 차별점을 찾아 홍보 페이지와 SNS 게시물을 만듭니다. 올린 파일은 저장하지 않습니다."
+      />
 
       {isStaticDemo && (
         <Panel title="Anthropic API 키">
           <p className="-mt-2 mb-3 text-sm leading-relaxed text-mute">
-            이 사이트는 서버가 없어 브라우저에서 Anthropic API를 직접 호출합니다. 키는 사이트나 저장소에 올라가지 않고 api.anthropic.com으로만 전송됩니다.
-            키를 비워 두면 문서를 읽지 않은 <strong>샘플 결과</strong>를 보여 줍니다.
+            키는 api.anthropic.com으로만 전송됩니다. 비워 두면 문서를 읽지 않은 <strong>샘플 결과</strong>를 보여 줍니다.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <input
@@ -162,7 +159,7 @@ export function StudioScreen() {
               <FilePick label="제품 문서 추가" hint="제안서·매뉴얼·기술 소개서 (PDF, PPTX, TXT, MD)" accept=".pdf,.pptx,.txt,.md" onFiles={(l) => setDocs((d) => [...d, ...l])} />
               <ul className="mt-2 space-y-1.5">
                 {docs.map((f, i) => (
-                  <li key={`${f.name}-${i}`} className="flex items-center justify-between gap-2 rounded-lg bg-cream px-3 py-2 text-sm">
+                  <li key={`${f.name}-${i}`} className="flex items-center justify-between gap-2 rounded-lg bg-canvas px-3 py-2 text-sm">
                     <span className="truncate">{f.name} <span className="text-mute">· {size(f.size)}</span></span>
                     <button type="button" className={btn.text} onClick={() => setDocs((d) => d.filter((_, j) => j !== i))}>삭제</button>
                   </li>
@@ -173,10 +170,10 @@ export function StudioScreen() {
               <FilePick label="사진 추가" hint={`제품 사진·사용 화면 최대 ${MAX_PHOTOS}장 (PNG, JPG, WEBP, GIF)`} accept=".png,.jpg,.jpeg,.webp,.gif" multiple onFiles={addPhotos} />
               <ul className="mt-2 grid grid-cols-3 gap-2">
                 {photos.map((f, i) => (
-                  <li key={`${f.name}-${i}`} className="relative overflow-hidden rounded-lg border border-line bg-cream">
+                  <li key={`${f.name}-${i}`} className="relative overflow-hidden rounded-lg border border-line bg-canvas">
                     {previews[i] && <img src={previews[i]} alt={f.name} className="aspect-square w-full object-cover" />}
-                    <span className="absolute left-1 top-1 rounded bg-ink/70 px-1.5 text-xs font-bold text-cream">{i + 1}</span>
-                    <button type="button" aria-label={`${f.name} 삭제`} className="absolute right-1 top-1 rounded bg-paper/90 px-1.5 text-xs font-bold" onClick={() => setPhotos((p) => p.filter((_, j) => j !== i))}>×</button>
+                    <span className="absolute left-1 top-1 rounded bg-ink/70 px-1.5 text-xs font-bold text-canvas">{i + 1}</span>
+                    <button type="button" aria-label={`${f.name} 삭제`} className="absolute right-1 top-1 rounded bg-surface/90 px-1.5 text-xs font-bold" onClick={() => setPhotos((p) => p.filter((_, j) => j !== i))}>×</button>
                   </li>
                 ))}
               </ul>
@@ -213,18 +210,18 @@ function Result({ input, result, urls, onExport }: { input: PromoInput; result: 
       </div>
 
       <Panel title="홍보 페이지 미리보기">
-        <article className="rounded-2xl bg-cream p-5 sm:p-8">
+        <article className="rounded-xl bg-canvas p-5 sm:p-8">
           <Badge tone="solid">{p.eyebrow}</Badge>
           <h3 className="mt-3 text-3xl font-extrabold leading-tight tracking-tight">{p.headline}</h3>
           <p className="mt-2 text-lg text-mute">{p.subheadline}</p>
           <p className="mt-3 leading-relaxed">{p.hook}</p>
-          {photo(p.heroPhotoIndex) && <img src={photo(p.heroPhotoIndex)!} alt={input.name} className="mt-5 max-h-[420px] w-full rounded-2xl object-cover" />}
+          {photo(p.heroPhotoIndex) && <img src={photo(p.heroPhotoIndex)!} alt={input.name} className="mt-5 max-h-[420px] w-full rounded-xl object-cover" />}
           <div className="mt-6 space-y-4">
             {p.highlights.map((h, i) => {
               const d = result.differentiators[h.differentiatorIndex];
               const src = photo(h.photoIndex);
               return (
-                <section key={i} className={`grid gap-4 rounded-2xl border border-line bg-paper p-5 ${src ? "sm:grid-cols-[240px_1fr] sm:items-center" : ""}`}>
+                <section key={i} className={`grid gap-4 rounded-xl border border-line bg-surface p-5 ${src ? "sm:grid-cols-[240px_1fr] sm:items-center" : ""}`}>
                   {src && <img src={src} alt={h.photoAlt ?? h.title} className="w-full rounded-xl" />}
                   <div>
                     <h4 className="text-lg font-extrabold">{h.title}</h4>
@@ -250,8 +247,8 @@ function Result({ input, result, urls, onExport }: { input: PromoInput; result: 
                 <p className="font-extrabold">{i + 1}. {d.title}</p>
                 <p className="mt-1 text-sm text-mute">{d.plain}</p>
                 <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-                  <div className="rounded-lg bg-cream p-3"><dt className="text-xs font-bold text-mute">기존 방식</dt><dd className="mt-1">{d.conventional}</dd></div>
-                  <div className="rounded-lg bg-forest-soft p-3"><dt className="text-xs font-bold text-forest">{input.name}</dt><dd className="mt-1 font-semibold">{d.ours}</dd></div>
+                  <div className="rounded-lg bg-canvas p-3"><dt className="text-xs font-bold text-mute">기존 방식</dt><dd className="mt-1">{d.conventional}</dd></div>
+                  <div className="rounded-lg bg-brand-soft p-3"><dt className="text-xs font-bold text-brand">{input.name}</dt><dd className="mt-1 font-semibold">{d.ours}</dd></div>
                 </dl>
                 <ul className="mt-3 space-y-1 text-xs">
                   {d.evidence.map((e, j) => (
@@ -271,7 +268,7 @@ function Result({ input, result, urls, onExport }: { input: PromoInput; result: 
         <div className="space-y-6">
           <Panel title="SNS 게시물" action={<CopyButton text={snsText} />}>
             <p className="whitespace-pre-line text-sm leading-relaxed">{result.sns.caption}</p>
-            <p className="mt-3 text-sm font-semibold text-forest">{hashtags.map((t) => `#${t}`).join(" ")}</p>
+            <p className="mt-3 text-sm font-semibold text-brand">{hashtags.map((t) => `#${t}`).join(" ")}</p>
           </Panel>
           {result.photos.length > 0 && (
             <Panel title="사진 인식 결과">
@@ -291,7 +288,7 @@ function Result({ input, result, urls, onExport }: { input: PromoInput; result: 
   );
 }
 
-const inputCls = "w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-forest";
+const inputCls = "w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-brand";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

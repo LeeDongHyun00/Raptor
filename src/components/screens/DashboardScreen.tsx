@@ -1,18 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { cardUrl, getRuns, getWorkspace } from "@/lib/client/api";
+import { BASE, cardUrl, getRuns, getWorkspace } from "@/lib/client/api";
 import { useLoad } from "@/lib/client/useLoad";
 import { INTERVAL_DAYS, nextRunAt } from "@/lib/pipelineCore";
-import { Badge, Loading, Panel, StatusBadge, btn, fmtDate } from "../ui";
+import { Badge, Loading, Panel, StatusBadge, fmtDate } from "../ui";
 import { ResetHistoryButton, RunNowButton } from "../RunControls";
 
 const FLOW = [
   { n: "1", title: "차별점 분석", body: "제안서·매뉴얼에서 강점을 뽑고 근거 페이지를 표시" },
   { n: "2", title: "트렌드 연결", body: "2주간 검색어·뉴스에서 제품과 맞는 주제를 선정" },
-  { n: "3", title: "6개 채널 동시 생성", body: "하나의 핵심 메시지를 블로그·인스타그램·이메일·카카오톡 배너·쇼츠·검색광고 형식으로" },
-  { n: "4", title: "자동 검수", body: "키워드·미션·채널별 형식 규칙을 검사하고 미충족 부분만 다시 작성" },
+  { n: "3", title: "채널별 동시 생성", body: "하나의 핵심 메시지를 채널마다 맞는 형식으로 제작" },
+  { n: "4", title: "자동 검수", body: "키워드·미션·형식 규칙을 검사하고 미충족 부분만 다시 작성" },
   { n: "5", title: "담당자 승인", body: "검토 후 승인하면 복사·내보내기로 직접 업로드" },
+];
+
+/** Output formats per channel; the picture carries the channel, the caption only names it. */
+const CHANNELS = [
+  { key: "blog", label: "네이버 블로그", spec: "글 · HTML" },
+  { key: "instagram", label: "인스타그램", spec: "카드 6~8장" },
+  { key: "email", label: "이메일", spec: "메일 HTML" },
+  { key: "kakao", label: "카카오톡 배너", spec: "1029×258 PNG" },
+  { key: "shorts", label: "쇼츠·릴스", spec: "15~30초 대본" },
+  { key: "search", label: "검색광고", spec: "문안 3개" },
 ];
 
 export function DashboardScreen() {
@@ -25,67 +35,87 @@ export function DashboardScreen() {
   const pending = runs.filter((r) => r.status === "pending" || r.status === "running");
   const next = nextRunAt(runs);
   const used = runs.filter((r) => r.plan && r.status !== "failed");
-  const usingSample = ws.materials.some((m) => m.demo);
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-3xl bg-forest text-cream">
+      <section className="overflow-hidden rounded-xl bg-brand text-surface">
         <div className="grid gap-8 p-6 sm:p-9 lg:grid-cols-[1.5fr_1fr]">
           <div>
-            <p className="text-sm font-semibold text-horn">{ws.product.company} · {ws.product.name}</p>
-            <h1 className="mt-2 text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl">
-              자료만 넣어 두면,<br />2주마다 6개 채널 소재가 승인함에 도착합니다
+            <p className="eyebrow text-accent">Content Autopilot</p>
+            <h1 className="mt-3 text-3xl font-extrabold leading-tight tracking-tight text-balance sm:text-4xl">
+              자료는 한 번, 광고 소재는 2주마다
             </h1>
-            <p className="mt-3 max-w-xl text-sm leading-relaxed text-cream/80">
-              {ws.product.summary}의 차별점을 요즘 트렌드와 엮어 하나의 핵심 메시지를 정하고, 블로그·인스타그램·이메일·카카오톡 배너·쇼츠·검색광고에 맞는 형식으로 각각 만든 뒤 검수까지 마쳐 담당자 승인을 기다립니다.
+            <p className="mt-3 max-w-xl text-sm leading-relaxed text-surface/80">
+              제품 차별점과 요즘 트렌드를 엮어 채널별 소재를 만들고, 검수까지 마쳐 승인함에 올립니다.
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-4">
               <RunNowButton />
-              <p className="text-sm text-cream/80">
-                다음 자동 실행 <strong className="font-bold text-cream">{next ? fmtDate(next) : "첫 실행 후 2주 뒤"}</strong>
-                <span className="text-cream/60"> · {INTERVAL_DAYS}일 주기</span>
+              <p className="text-sm text-surface/80">
+                다음 자동 실행 <strong className="font-bold text-surface">{next ? fmtDate(next) : "첫 실행 후 2주 뒤"}</strong>
+                <span className="text-surface/60"> · {INTERVAL_DAYS}일 주기</span>
               </p>
             </div>
+            {modes.ai !== "live" && (
+              <p className="mt-5 inline-flex items-center gap-2 text-xs text-surface/70">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                데모 모드 · 회사 문서로 미리 준비한 원고가 생성됩니다
+              </p>
+            )}
           </div>
-          <dl className="grid grid-cols-3 gap-3 self-end text-center lg:grid-cols-1 lg:text-left">
-            <Stat label="승인 대기" value={`${pending.length}건`} />
-            <Stat label="차별점 카드" value={`${ws.differentiators.length}개`} />
-            <Stat label="다룬 주제" value={`${used.length}개`} />
+          <dl className="grid grid-cols-3 gap-3 self-end lg:grid-cols-1">
+            <Stat label="승인 대기" value={pending.length} unit="건" />
+            <Stat label="차별점" value={ws.differentiators.length} unit="개" />
+            <Stat label="다룬 주제" value={used.length} unit="개" />
           </dl>
-        </div>
-        <div className="flex flex-wrap gap-2 border-t border-cream/15 bg-ink/25 px-6 py-3 text-xs sm:px-9">
-          <Mode on={modes.ai === "live"} onText="AI: Claude 실제 생성" offText="AI: 데모 모드(문서 기반 준비 원고)" />
-          <Mode on={modes.trend === "live"} onText="트렌드: 네이버 데이터랩" offText="트렌드: 샘플 데이터" />
-          <Mode on={modes.storage === "supabase"} onText="저장소: Supabase" offText={{ supabase: "", file: "저장소: 로컬 파일", ephemeral: "저장소: 임시(재시작 시 초기화)", browser: "저장소: 이 브라우저(GitHub Pages 데모)" }[modes.storage]} />
-          {usingSample && <Mode on onText="자료: 회사 문서 4종 사전 분석" offText="" />}
         </div>
       </section>
 
-      <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {FLOW.map((f) => (
-          <li key={f.n} className="rounded-2xl border border-line bg-paper p-4">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-horn-soft text-sm font-extrabold text-[#8a5a0b]">{f.n}</span>
-            <p className="mt-2.5 text-sm font-bold">{f.title}</p>
-            <p className="mt-1 text-xs leading-relaxed text-mute">{f.body}</p>
-          </li>
-        ))}
-      </ol>
+      <section aria-labelledby="flow-title">
+        <SectionHead eyebrow="How it works" id="flow-title" title="분석부터 승인까지, 5단계로 진행됩니다" />
+        <ol className="grid gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-5">
+          {FLOW.map((f) => (
+            <li key={f.n} className="bg-surface p-5">
+              <span className="text-xs font-extrabold tabular-nums text-brand">{f.n.padStart(2, "0")}</span>
+              <p className="mt-2 text-sm font-bold">{f.title}</p>
+              <p className="mt-1 text-xs leading-relaxed text-mute">{f.body}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
 
-      <Panel title="승인 대기열">
+      <section aria-labelledby="channel-title">
+        <SectionHead eyebrow="Channels" id="channel-title" title="한 메시지, 6개 채널" />
+        <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+          {CHANNELS.map((c) => (
+            <li key={c.key}>
+              <figure className="overflow-hidden rounded-xl border border-line bg-surface">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`${BASE}/channels/${c.key}.svg`} alt={`${c.label} 소재 예시`} width={480} height={360} className="aspect-[4/3] w-full" />
+                <figcaption className="border-t border-line px-3 py-2.5">
+                  <span className="block whitespace-nowrap text-sm font-bold">{c.label}</span>
+                  <span className="block text-[11px] text-mute">{c.spec}</span>
+                </figcaption>
+              </figure>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <Panel eyebrow="Review" title="승인 대기열">
         {pending.length === 0 ? (
-          <p className="rounded-xl bg-cream px-4 py-8 text-center text-sm text-mute">
+          <p className="rounded-xl bg-canvas px-4 py-8 text-center text-sm text-mute">
             검토할 결과물이 없습니다. 위의 ‘지금 실행’으로 이번 회차를 바로 만들어 볼 수 있습니다.
           </p>
         ) : (
           <ul className="grid gap-4 md:grid-cols-2">
             {pending.map((r) => (
               <li key={r.id}>
-                <Link href={`/run?id=${r.id}`} className="flex gap-4 rounded-xl border border-line bg-cream/50 p-3 transition-colors hover:border-forest">
+                <Link href={`/run?id=${r.id}`} className="flex gap-4 rounded-xl border border-line bg-canvas/50 p-3 transition-colors hover:border-brand">
                   {r.cards ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={cardUrl(r, 0)} alt="" className="h-[150px] w-[120px] shrink-0 rounded-lg border border-line object-cover" />
                   ) : (
-                    <div className="h-[150px] w-[120px] shrink-0 animate-pulse rounded-lg bg-forest-soft" />
+                    <div className="h-[150px] w-[120px] shrink-0 animate-pulse rounded-lg bg-brand-soft" />
                   )}
                   <div className="flex min-w-0 flex-col py-1">
                     <div className="flex flex-wrap gap-1.5">
@@ -105,7 +135,7 @@ export function DashboardScreen() {
         )}
       </Panel>
 
-      <Panel title="생성 이력" action={runs.length > 0 ? <ResetHistoryButton onDone={reload} /> : undefined}>
+      <Panel eyebrow="History" title="생성 이력" action={runs.length > 0 ? <ResetHistoryButton onDone={reload} /> : undefined}>
         {runs.length === 0 ? (
           <p className="text-sm text-mute">아직 생성 이력이 없습니다. 한 번 다룬 주제는 여기에 기록되어 다음 회차에서 다시 쓰지 않습니다.</p>
         ) : (
@@ -139,28 +169,24 @@ export function DashboardScreen() {
           </div>
         )}
       </Panel>
-
-      <p className="text-center text-sm text-mute">
-        자료를 바꾸려면 <Link href="/materials" className={btn.text}>자료·가이드라인</Link>, 분석 결과는 <Link href="/insights" className={btn.text}>차별점 분석</Link>에서 확인하세요.
-      </p>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, unit }: { label: string; value: number; unit: string }) {
   return (
-    <div className="rounded-xl bg-cream/10 px-4 py-3">
-      <dt className="text-xs text-cream/70">{label}</dt>
-      <dd className="text-xl font-extrabold tabular-nums">{value}</dd>
+    <div className="rounded-lg bg-surface/10 px-4 py-3">
+      <dt className="text-xs text-surface/70">{label}</dt>
+      <dd className="mt-0.5 text-2xl font-extrabold tabular-nums">{value}<span className="ml-0.5 text-sm font-bold text-surface/70">{unit}</span></dd>
     </div>
   );
 }
 
-function Mode({ on, onText, offText }: { on: boolean; onText: string; offText: string }) {
+function SectionHead({ eyebrow, title, id }: { eyebrow: string; title: string; id: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-cream/10 px-2.5 py-1 text-cream/90">
-      <span className={`h-1.5 w-1.5 rounded-full ${on ? "bg-[#7fd6a4]" : "bg-horn"}`} />
-      {on ? onText : offText}
-    </span>
+    <div className="mb-4">
+      <p className="eyebrow text-brand">{eyebrow}</p>
+      <h2 id={id} className="mt-1 text-lg font-extrabold tracking-tight">{title}</h2>
+    </div>
   );
 }
