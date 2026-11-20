@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { extractPptxText } from "@/lib/docs";
-import { generatePromo, type StudioDoc, type StudioPhoto } from "@/lib/studio";
+import Anthropic from "@anthropic-ai/sdk";
+import { generatePromo } from "@/lib/studio";
+import { promoErrorMessage, type StudioDoc, type StudioPhoto } from "@/lib/studioCore";
 
 export const maxDuration = 300;
 
@@ -60,15 +61,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ result: await generatePromo(input, docs, photos) });
   } catch (err) {
-    if (err instanceof Anthropic.RateLimitError) {
-      return NextResponse.json({ error: "요청이 많아 잠시 후 다시 시도해 주세요." }, { status: 429 });
-    }
-    if (err instanceof Anthropic.AuthenticationError) {
-      return NextResponse.json({ error: "Anthropic API 키가 올바르지 않습니다. 서버 설정을 확인해 주세요." }, { status: 500 });
-    }
-    if (err instanceof Anthropic.BadRequestError) {
-      return NextResponse.json({ error: `AI 요청이 거부되었습니다: ${err.message}` }, { status: 400 });
-    }
-    return NextResponse.json({ error: err instanceof Error ? err.message : "홍보 콘텐츠를 만들지 못했습니다." }, { status: 500 });
+    const status = err instanceof Anthropic.APIError && err.status === 429 ? 429 : 500;
+    return NextResponse.json({ error: promoErrorMessage(err) }, { status });
   }
 }

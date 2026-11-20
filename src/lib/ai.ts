@@ -9,6 +9,7 @@ import { getAsset } from "./store";
 import { demoBlog, demoCards, demoChannels, demoPlan, demoReviewMissions, demoRevise } from "./demo";
 import { LIMITS } from "./review";
 import { seedDifferentiators } from "./seed";
+import { NO_INVENTED, TONE } from "./prompts";
 
 export const aiMode: "live" | "demo" =
   process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN ? "live" : "demo";
@@ -51,7 +52,6 @@ async function review<T>(schema: z.ZodType<T>, system: string, text: string): Pr
   return res.parsed_output;
 }
 
-export const TONE = `글은 기술을 모르는 실무자도 바로 이해할 수 있는 쉬운 한국어로 씁니다. 전문 용어는 풀어 쓰고, 과장·최상급 표현과 근거 없는 수치, 경쟁사 비방은 쓰지 않습니다. 제공된 자료에 없는 기능이나 사실을 지어내지 않습니다.`;
 
 /* ---------- 1. Differentiator analysis ---------- */
 
@@ -318,7 +318,6 @@ const SearchAdsSchema = z.object({
 const fixNote = (notes?: string[]) =>
   notes?.length ? `\n\n이전 결과는 자동 검수에서 아래 규칙을 지키지 못했습니다. 이번에는 반드시 지켜 주세요:\n${notes.map((n) => `- ${n}`).join("\n")}` : "";
 
-export const NO_INVENTED = "자료에 없는 수치, 할인, 가격, 마감 기한, 무료 체험 같은 혜택은 만들어 내지 않습니다. 거짓 긴급성 표현(오늘만, 마감 임박, 선착순, 한정)은 쓰지 않습니다.";
 
 const channelWriters: { [K in ChannelId]: (ws: Workspace, plan: Plan, notes?: string[]) => Promise<Channels[K]> } = {
   email: (ws, plan, notes) =>

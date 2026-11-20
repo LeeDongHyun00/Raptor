@@ -160,9 +160,17 @@ export async function analyze(): Promise<void> {
   await json("/api/analyze", { method: "POST" });
 }
 
-/** Promo studio: one request, nothing stored server-side. */
-export async function generatePromo(input: PromoInput, docs: File[], photos: File[]): Promise<PromoResult> {
+/**
+ * Promo studio: one request, nothing stored. On GitHub Pages there is no server, so the
+ * browser calls the API with the viewer's own key, or shows a sample without one.
+ */
+export async function generatePromo(input: PromoInput, docs: File[], photos: File[], apiKey?: string): Promise<PromoResult> {
   if (isStaticDemo) {
+    if (apiKey) {
+      // Loaded on demand so the SDK is not in the bundle for visitors who never generate.
+      const { generatePromoInBrowser } = await import("./studioBrowser");
+      return generatePromoInBrowser(apiKey, input, docs, photos);
+    }
     // Short pause so the sample result does not look like a cached page.
     await new Promise((r) => setTimeout(r, 600));
     return demoPromo(input, photos.length);

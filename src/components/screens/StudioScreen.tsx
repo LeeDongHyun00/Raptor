@@ -6,12 +6,16 @@
 import { useEffect, useMemo, useState } from "react";
 import type { PromoInput, PromoResult } from "@/lib/types";
 import { downloadHtml, generatePromo, isStaticDemo } from "@/lib/client/api";
+import { loadStoredKey, storeKey } from "@/lib/client/apiKeyStore";
 import { promoDocumentHtml } from "@/lib/studioHtml";
 import { AD_HASHTAG } from "@/lib/review";
 import { Badge, Panel, btn } from "../ui";
 
 const MAX_PHOTOS = 6;
-const MAX_TOTAL = 4 * 1024 * 1024;
+// The server route sits behind Vercel's ~4.5 MB body cap; direct browser calls only face
+// the API's 32 MB request cap, which base64 (+33%) still clears at 20 MB of files.
+const MAX_TOTAL = (isStaticDemo ? 20 : 4) * 1024 * 1024;
+const MAX_LABEL = isStaticDemo ? "20MB" : "4MB";
 const PHOTO_EDGE = 1280;
 
 /** Downscales a photo so several fit under the upload cap and vision tokens stay low. */
@@ -41,7 +45,7 @@ const toDataUrl = (f: File) =>
     r.readAsDataURL(f);
   });
 
-const size = (n: number) => (n > 1048576 ? `${(n / 1048576).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
+const size = (n: number) => (n === 0 ? "0KB" : n > 1048576 ? `${(n / 1048576).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
 
 export function StudioScreen() {
   const [input, setInput] = useState<PromoInput>({ name: "", company: "", summary: "", audience: "" });
@@ -52,6 +56,15 @@ export function StudioScreen() {
   const [result, setResult] = useState<PromoResult | null>(null);
   // Snapshot of the photos the result refers to, so editing the list later cannot misalign indexes.
   const [resultPhotos, setResultPhotos] = useState<File[]>([]);
+  const [apiKey, setApiKey] = useState("");
+  const [remember, setRemember] = useState(false);
+
+  useEffect(() => {
+    const saved = loadStoredKey();
+    // Read after mount: localStorage does not exist during prerendering.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (saved) { setApiKey(saved); setRemember(true); }
+  }, []);
 
   const previews = useObjectUrls(photos);
   const resultUrls = useObjectUrls(resultPhotos);
@@ -70,10 +83,12 @@ export function StudioScreen() {
     setError("");
     if (!input.name.trim()) return setError("제품명을 입력해 주세요.");
     if (docs.length === 0) return setError("제품 문서를 하나 이상 올려 주세요.");
-    if (!isStaticDemo && total > MAX_TOTAL) return setError("문서와 사진을 합쳐 4MB 이하로 올려 주세요.");
+    if (total > MAX_TOTAL) return setError(`문서와 사진을 합쳐 ${MAX_LABEL} 이하로 올려 주세요.`);
+    const key = apiKey.trim();
+    if (isStaticDemo) storeKey(remember && key ? key : null);
     setBusy(true);
     try {
-      const r = await generatePromo(input, docs, photos);
+      const r = await generatePromo(input, docs, photos, isStaticDemo ? key : undefined);
       setResultPhotos(photos);
       setResult(r);
     } catch (err) {
@@ -103,9 +118,32 @@ export function StudioScreen() {
       </div>
 
       {isStaticDemo && (
-        <p className="rounded-xl border border-horn/40 bg-horn-soft px-4 py-3 text-sm leading-relaxed text-[#6d4708]">
-          GitHub Pages 데모에서는 문서를 실제로 분석하지 않고 <strong>샘플 결과</strong>를 보여 줍니다.
-        </p>
+        <Panel title="Anthropic API 키">
+          <p className="-mt-2 mb-3 text-sm leading-relaxed text-mute">
+            이 사이트는 서버가 없어 브라우저에서 Anthropic API를 직접 호출합니다. 키는 사이트나 저장소에 올라가지 않고 api.anthropic.com으로만 전송됩니다.
+            키를 비워 두면 문서를 읽지 않은 <strong>샘플 결과</strong>를 보여 줍니다.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="password"
+              className={`${inputCls} max-w-md flex-1`}
+              placeholder="sk-ant-..."
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+              aria-label="Anthropic API 키"
+            />
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+              이 브라우저에 기억하기
+            </label>
+            {apiKey && (
+              <button type="button" className={btn.text} onClick={() => { setApiKey(""); setRemember(false); storeKey(null); }}>키 지우기</button>
+            )}
+          </div>
+          <p className="mt-2 text-xs text-mute">공용 컴퓨터에서는 ‘기억하기’를 끄세요. 키는 console.anthropic.com의 API Keys에서 만들 수 있습니다.</p>
+        </Panel>
       )}
 
       <form onSubmit={submit} className="grid gap-6 lg:grid-cols-2">
@@ -143,7 +181,7 @@ export function StudioScreen() {
                 ))}
               </ul>
             </div>
-            <p className={`text-xs ${total > MAX_TOTAL ? "font-bold text-bad" : "text-mute"}`}>합계 {size(total)} / 4MB (사진은 자동으로 줄여 올립니다)</p>
+            <p className={`text-xs ${total > MAX_TOTAL ? "font-bold text-bad" : "text-mute"}`}>합계 {size(total)} / {MAX_LABEL} (사진은 자동으로 줄여 올립니다)</p>
             <button type="submit" className={`${btn.accent} w-full`} disabled={busy} aria-busy={busy}>
               {busy ? "분석하고 만드는 중… (보통 20~60초)" : "차별점 분석하고 홍보 콘텐츠 만들기"}
             </button>
