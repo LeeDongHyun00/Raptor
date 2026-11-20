@@ -1,6 +1,6 @@
 import { after, NextResponse } from "next/server";
 import { createRun, executeRun } from "@/lib/pipeline";
-import { withViewerKey } from "@/lib/ai";
+import { withDemo, withViewerKey } from "@/lib/ai";
 import { clearRuns, getRuns } from "@/lib/store";
 
 // Generation with real AI calls can take a few minutes.
@@ -17,7 +17,10 @@ export async function POST(req: Request) {
   const active = runs.find((r) => r.status === "running" && Date.now() - new Date(r.createdAt).getTime() < maxDuration * 1000);
   if (active) return NextResponse.json({ id: active.id, alreadyRunning: true });
   // The viewer key (if any) must stay bound while the pipeline runs after the response.
-  const withKey = withViewerKey(req);
+  const keyed = withViewerKey(req);
+  // ?demo=1 is the "start demo" button: prepared copy, no API call, whatever keys exist.
+  const demo = new URL(req.url).searchParams.has("demo");
+  const withKey = <T,>(fn: () => Promise<T>) => (demo ? withDemo(fn) : keyed(fn));
   const run = await withKey(() => createRun("manual"));
   after(() => withKey(() => executeRun(run.id)));
   return NextResponse.json({ id: run.id });

@@ -13,6 +13,8 @@ export const KEY_HEADER = "x-anthropic-key";
 
 const hasEnvKey = !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
 const requestKey = new AsyncLocalStorage<string>();
+// Set for a run the viewer explicitly started as a demo: prepared copy even when a key exists.
+const forcedDemo = new AsyncLocalStorage<true>();
 
 let envClient: Anthropic | null = null;
 
@@ -23,7 +25,7 @@ setAiContext({
     if (hasEnvKey || !key) return (envClient ??= new Anthropic());
     return new Anthropic({ apiKey: key });
   },
-  live: () => hasEnvKey || !!requestKey.getStore(),
+  live: () => !forcedDemo.getStore() && (hasEnvKey || !!requestKey.getStore()),
   getAsset,
 });
 
@@ -31,7 +33,10 @@ setAiContext({
 export const serverAiMode: "live" | "demo" = hasEnvKey ? "live" : "demo";
 
 /** AI mode for the request being handled, counting a viewer-supplied key. */
-export const aiMode = (): "live" | "demo" => (hasEnvKey || requestKey.getStore() ? "live" : "demo");
+export const aiMode = (): "live" | "demo" => (!forcedDemo.getStore() && (hasEnvKey || requestKey.getStore()) ? "live" : "demo");
+
+/** Runs `fn` in demo mode regardless of any key, for the "start demo" button. */
+export const withDemo = <T>(fn: () => Promise<T>): Promise<T> => forcedDemo.run(true, fn);
 
 /**
  * Runs `fn` with the viewer's key from the request, if any. Returns a runner so work

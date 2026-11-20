@@ -140,9 +140,10 @@ async function browserEngine(apiKey: string) {
   return engine;
 }
 
-export async function startRun(): Promise<string> {
-  if (!isStaticDemo) return (await json<{ id: string }>("/api/runs", { method: "POST" })).id;
-  const key = loadStoredKey();
+/** Starts a run. `demo` forces the prepared copy even when an API key is available. */
+export async function startRun(demo = false): Promise<string> {
+  if (!isStaticDemo) return (await json<{ id: string }>(`/api/runs${demo ? "?demo=1" : ""}`, { method: "POST" })).id;
+  const key = demo ? "" : loadStoredKey();
   const run = newRun("manual", key ? "live" : "demo", "sample");
   saveLocalRuns([run, ...localRuns()]);
   activeRuns.add(run.id);

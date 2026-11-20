@@ -5,29 +5,37 @@ import { useState } from "react";
 import { clearRuns, startRun } from "@/lib/client/api";
 import { btn } from "./ui";
 
-export function RunNowButton({ label = "지금 실행" }: { label?: string }) {
+/**
+ * Run controls: the main button generates with whatever AI is available, and the demo
+ * button under it always uses the prepared copy, so the flow can be tried without an API key.
+ */
+export function RunNowButton({ label = "지금 실행", withDemo = false }: { label?: string; withDemo?: boolean }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"run" | "demo" | null>(null);
   const [error, setError] = useState("");
+
+  async function start(demo: boolean) {
+    setBusy(demo ? "demo" : "run");
+    setError("");
+    try {
+      router.push(`/run?id=${await startRun(demo)}`);
+    } catch {
+      setError("실행을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      setBusy(null);
+    }
+  }
+
   return (
-    <div className="flex flex-col items-start gap-1.5">
-      <button
-        className={btn.accent}
-        disabled={busy}
-        onClick={async () => {
-          setBusy(true);
-          setError("");
-          try {
-            router.push(`/run?id=${await startRun()}`);
-          } catch {
-            setError("실행을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
-            setBusy(false);
-          }
-        }}
-      >
+    <div className="flex flex-col items-start gap-2">
+      <button className={btn.accent} disabled={!!busy} onClick={() => start(false)}>
         <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9-5.5z" fill="currentColor" /></svg>
-        {busy ? "시작하는 중…" : label}
+        {busy === "run" ? "시작하는 중…" : label}
       </button>
+      {withDemo && (
+        <button className={btn.ghost} disabled={!!busy} onClick={() => start(true)}>
+          {busy === "demo" ? "시작하는 중…" : "API 키 없이 데모 시작"}
+        </button>
+      )}
       {error && <p role="alert" className="text-xs text-bad">{error}</p>}
     </div>
   );

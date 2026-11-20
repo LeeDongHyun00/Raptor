@@ -14,6 +14,8 @@ export async function createRun(trigger: Run["trigger"]): Promise<Run> {
 
 export function executeRun(runId: string): Promise<void> {
   return runPipeline(runId, {
+    // Prepared copy returns instantly; pace it so the steps (and their timings) can be followed.
+    stepDelayMs: aiMode() === "demo" ? 700 : undefined,
     getWorkspace, saveWorkspace, getRuns, updateRun, collectTrends,
     describeScreenshots, planTopic, writeBlog, writeCards, writeChannels, reviewMissions, reviseBlog,
   });

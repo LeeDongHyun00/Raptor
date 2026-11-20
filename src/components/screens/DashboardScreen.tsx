@@ -72,10 +72,10 @@ export function DashboardScreen() {
         aiMode={modes.ai}
         onSaved={reload}
         footer={
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-            <RunNowButton label="이 설정으로 지금 실행" />
+          <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
+            <RunNowButton label="이 설정으로 지금 실행" withDemo />
             <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-mute">
-              <div className="flex gap-1.5"><dt>예상 소요</dt><dd className="font-bold text-ink">{modes.ai === "live" ? "보통 1~3분" : "약 5초"}</dd></div>
+              <div className="flex gap-1.5"><dt>예상 소요</dt><dd className="font-bold text-ink">{modes.ai === "live" ? "보통 1~3분 · 데모는 약 5초" : "약 5초"}</dd></div>
               {lastMs != null && <div className="flex gap-1.5"><dt>지난 실행</dt><dd className="font-bold text-ink">{fmtDuration(lastMs)}</dd></div>}
               <div className="flex gap-1.5"><dt>다음 자동 실행</dt><dd className="font-bold text-ink">{next ? fmtDate(next) : "첫 실행 후 2주 뒤"} · {INTERVAL_DAYS}일 주기</dd></div>
             </dl>
