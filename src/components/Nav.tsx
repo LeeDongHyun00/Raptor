@@ -7,6 +7,7 @@ const items = [
   { href: "/", label: "대시보드" },
   { href: "/materials", label: "자료·가이드라인" },
   { href: "/insights", label: "차별점 분석" },
+  { href: "/studio", label: "홍보 스튜디오" },
 ];
 
 export function Nav() {

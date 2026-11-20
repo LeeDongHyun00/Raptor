@@ -1,4 +1,5 @@
-import type { Blog, Guideline, MaterialKind, Run, Workspace } from "../types";
+import type { Blog, Guideline, MaterialKind, PromoInput, PromoResult, Run, Workspace } from "../types";
+import { demoPromo } from "../studioDemo";
 import { demoBlog, demoCards, demoChannels, demoPlan, demoReviewMissions, demoRevise, demoTopicIndex, sampleNews, sampleTrends } from "../demo";
 import { demoScreenSvg, seedWorkspace } from "../seed";
 import { newRun, runPipeline } from "../pipelineCore";
@@ -157,6 +158,25 @@ export async function saveGuideline(g: Omit<Guideline, "source">): Promise<void>
 export async function analyze(): Promise<void> {
   if (isStaticDemo) throw new Error(STATIC_NOTICE);
   await json("/api/analyze", { method: "POST" });
+}
+
+/** Promo studio: one request, nothing stored server-side. */
+export async function generatePromo(input: PromoInput, docs: File[], photos: File[]): Promise<PromoResult> {
+  if (isStaticDemo) {
+    // Short pause so the sample result does not look like a cached page.
+    await new Promise((r) => setTimeout(r, 600));
+    return demoPromo(input, photos.length);
+  }
+  const form = new FormData();
+  for (const [k, v] of Object.entries(input)) form.set(k, v);
+  docs.forEach((f) => form.append("doc", f));
+  photos.forEach((f) => form.append("photo", f));
+  const res = await fetch(`${BASE}/api/studio`, { method: "POST", body: form });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(res.status === 413 ? "문서와 사진을 합쳐 4MB 이하로 올려 주세요." : (body as { error?: string }).error ?? "생성에 실패했습니다.");
+  }
+  return (body as { result: PromoResult }).result;
 }
 
 /* ---------- URLs for images and downloads ---------- */
