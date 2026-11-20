@@ -27,11 +27,11 @@ export function InsightsScreen() {
       </div>
 
       {sample && (
-        <p className="rounded-xl border border-horn/40 bg-horn-soft px-4 py-3 text-sm leading-relaxed text-[#6d4708]">
-          지금 보이는 카드는 <strong>샘플 분석 결과</strong>입니다.{" "}
-          {isStaticDemo ? "실제 문서 분석은 서버에 배포한 버전에서 할 수 있습니다." : <>실제 문서를 근거로 분석하려면{" "}
-          {realDocs === 0 ? <><Link href="/materials" className="font-bold underline">자료 페이지</Link>에서 제안서·매뉴얼을 올리고 </> : null}
-          {aiMode === "demo" ? "ANTHROPIC_API_KEY를 설정한 뒤 " : ""}‘다시 분석’을 실행하세요.</>}
+        <p className="rounded-xl border border-forest/20 bg-forest-soft px-4 py-3 text-sm leading-relaxed text-forest">
+          회사 문서 4종(CRM 매뉴얼, 모바일 관리자 매뉴얼, PC폰 매뉴얼, 11월 가이드라인)을 읽고 <strong>미리 분석해 둔 결과</strong>입니다.{" "}
+          {isStaticDemo
+            ? "새 문서를 올려 다시 분석하는 기능은 서버에 배포한 버전에서 쓸 수 있습니다."
+            : <>새 문서를 <Link href="/materials" className="font-bold underline">자료 페이지</Link>에 올리고{aiMode === "demo" ? " ANTHROPIC_API_KEY를 설정한 뒤" : ""} ‘다시 분석’을 누르면 그 문서 기준으로 바뀝니다.</>}
         </p>
       )}
 

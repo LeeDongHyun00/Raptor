@@ -1,98 +1,167 @@
 import type { Differentiator, Guideline, Material, Workspace } from "./types";
 
 /**
- * Sample workspace shown before any real material is uploaded.
- * Everything here is illustrative demo content, flagged with `demo: true`
- * in the UI — it is not taken from actual Tlink documents.
+ * Starting workspace, prepared from the four company documents (CRM manual,
+ * mobile admin manual, PC phone manual, November 2026 guideline). The documents
+ * themselves are not in the repository: only the analysis written from them and
+ * a few screenshots taken from the manuals, with personal fields blurred.
+ * Items flagged `demo: true` are these preloaded entries (not user uploads).
  */
 
-export const DEMO_DOCS = {
-  proposal: "비즈레코딩 제안서(샘플).pdf",
-  manual: "비즈레코딩 사용자 매뉴얼(샘플).pdf",
+// The uploaded files lost their Korean file names, so these are named after each document's own title.
+export const DOCS = {
+  crm: "TlinkNote 클라우드 CRM 사용자 매뉴얼.pdf",
+  admin: "티링크모바일 관리자 매뉴얼.pptx",
+  pc: "TlinkPhone(PC폰) 사용자 매뉴얼.pdf",
+  guide: "2026년 11월 티링크 가이드라인.xlsx",
 };
 
+export const CONTACT = {
+  homepage: "www.tlinkcrm.com",
+  blog: "https://blog.naver.com/mobilecrm",
+  phone: "1877-3836",
+  inquiry: "https://www.tlinkcrm.com/center.php",
+};
+
+export const GUIDE_TAGS = [
+  "티링크", "콜센터", "고객상담", "콜센터프로그램", "고객관리프로그램", "CRM프로그램", "녹음", "녹취", "인터넷전화", "CRM",
+  "영업사원통화관리", "고객관리", "업무자동화", "STT", "문자변환", "음성요약", "회의록작성", "휴대폰녹음", "종합리포트",
+];
+
 export const seedGuideline: Guideline = {
-  source: "기본 가이드라인(샘플)",
+  source: DOCS.guide,
   requiredKeywords: [
-    { keyword: "비즈레코딩", minCount: 3 },
-    { keyword: "통화녹음", minCount: 2 },
-    { keyword: "AI 리포트", minCount: 1 },
+    { keyword: "통화요약", minCount: 1 },
+    { keyword: "콜센터 프로그램", minCount: 1 },
+    { keyword: "업무자동화", minCount: 1 },
   ],
   missions: [
-    "도입 문단에서 독자가 겪는 업무 문제 상황을 먼저 제시한다",
-    "제품 화면 캡처를 2장 이상 사용하고 각 이미지에 캡션을 단다",
-    "마지막 문단에 도입 문의로 이어지는 행동 유도 문구를 넣는다",
+    "제목에 필수 키워드(통화요약, 콜센터 프로그램, 업무자동화)를 포함한다",
+    "제목과 첫 문단에 ‘티링크 비즈레코딩’, ‘영업사원 통화관리’, ‘휴대폰 통화녹음’, ‘인터넷전화 자동녹취’ 키워드를 자연스럽게 포함한다",
+    "외근 중 휴대폰, 사무실 인터넷전화, 집에서는 PC폰 통화를 동시에 자동 녹음·녹취하고 하나의 관리 화면에서 확인할 수 있다는 점을 강조한다. 통신사는 KT, SK, LG 모두 사용 가능하다",
+    "통화가 끝나면 STT 문자변환, AI 통화요약, 핵심 키워드, 고객 요청사항과 후속 조치 내용이 자동으로 기록된다는 점을 소개한다",
+    "영업사원별 통화량, 평균 통화시간, 고객 상담 이력, 미결 상담과 후속 연락 여부를 관리할 수 있다는 점을 설명한다",
+    "고객별 통화기록과 상담 내용을 CRM에 연결해 담당자가 변경되어도 이전 상담 이력을 빠르게 확인할 수 있다는 점을 강조한다",
+    "관리자와 경영진이 조직별·직원별 영업 활동, 상담 현황, 미결 업무, 고객 이탈 위험 등을 종합 리포트와 경영 대시보드에서 한눈에 확인할 수 있다는 점을 소개한다",
+    "영업사원이 통화 메모나 일일 보고서를 작성하는 시간을 줄이고, 관리자는 객관적인 통화 데이터를 바탕으로 영업 코칭과 성과관리를 할 수 있다는 점을 강조한다",
+    "통화 한 건을 직접 녹음하고 녹취 결과와 AI 요약이 생성되는 과정을 실제 사용 흐름대로 보여 준다",
+    "휴대폰 통화 화면, 인터넷전화 녹취 목록, AI 통화요약, 직원별 통계, 종합 리포트 화면을 이미지와 함께 순서대로 소개한다",
+    "단순한 통화녹음 서비스가 아니라 ‘영업 활동을 자동으로 기록하고 경영에 필요한 정보로 정리해 주는 기업용 영업관리 솔루션’이라는 점을 결론에서 강조한다",
+    "AES256·SHA256 암호화와 사용자별 접근권한 등 기업 통화정보를 안전하게 관리하는 보안 기능을 함께 소개한다",
+    `글 하단에 홈페이지(${CONTACT.homepage}), 공식 블로그 링크, 상담 문의(${CONTACT.phone}) 정보를 넣는다`,
   ],
-  structure: ["문제 제기", "트렌드 연결", "기능별 해결 방법", "정리와 문의 안내"],
-  minChars: 650,
+  structure: ["기존 영업관리의 문제", "휴대폰·인터넷전화 동시 녹음", "AI 자동 기록과 요약", "영업사원 관리", "경영진 종합 리포트"],
+  // The guideline sheet sets no length requirement.
+  minChars: 0,
 };
+
+const ev = (doc: string, page: number, quote: string) => ({ doc, page, quote });
 
 export const seedDifferentiators: Differentiator[] = [
   {
-    id: "d_record",
-    title: "업무 통화 자동 녹음·자동 정리",
-    plain: "통화가 끝나면 녹음 파일이 고객별로 알아서 정리됩니다.",
-    conventional: "직원이 개인 휴대폰 앱으로 녹음하고, 파일을 직접 찾아 공유합니다.",
-    ours: "업무 통화가 자동으로 녹음되어 고객·담당자·날짜 기준으로 한곳에 쌓입니다.",
+    id: "d_unified",
+    title: "휴대폰·인터넷전화·PC폰 통합 녹취",
+    plain: "어떤 전화로 통화하든 녹음이 한 화면에 모입니다.",
+    conventional: "휴대폰은 개인 녹음 앱, 사무실 전화는 별도 녹취 장비를 써서 통화 기록이 직원과 기기마다 흩어집니다.",
+    ours: "휴대폰 앱이 녹음을 자동 전송하고 인터넷전화·PC폰 녹음도 서버로 올라가, 하나의 통화 녹음 목록에서 검색하고 재생합니다.",
     evidence: [
-      { doc: DEMO_DOCS.proposal, page: 5, quote: "업무 통화 자동 녹음 및 클라우드 보관" },
-      { doc: DEMO_DOCS.manual, page: 12, quote: "통화 목록에서 고객명·기간으로 검색" },
+      ev(DOCS.admin, 24, "녹음·문자 자동전송을 ON으로 설정하면 자동으로 서버에 전송됩니다."),
+      ev(DOCS.admin, 6, "통화일·ID·CID·in/out·상태로 통화 녹음 목록을 검색하고, [상세보기]로 통화 내용을 확인합니다."),
+      ev(DOCS.pc, 16, "녹음파일 전송을 체크하면 녹음 파일이 서버로 전송됩니다."),
+    ],
+  },
+  {
+    id: "d_summary",
+    title: "통화가 끝나면 STT·AI 요약 자동 기록",
+    plain: "녹음을 다시 듣지 않아도 무슨 통화였는지 글로 남습니다.",
+    conventional: "통화가 끝나면 직원이 내용을 기억해 메모하고, 확인하려면 녹음을 처음부터 다시 들어야 합니다.",
+    ours: "통화마다 키워드, AI 요약, 화자별 대화 스크립트가 자동으로 만들어지고 목록에는 한 줄 요약이 표시됩니다.",
+    evidence: [
+      ev(DOCS.admin, 7, "녹음 파일 재생, 추출된 키워드, AI 요약 내용과 화자별 대화 스크립트를 확인할 수 있습니다."),
+      ev(DOCS.crm, 15, "한줄요약: AI가 분석한 통화 내용 요약"),
+      ev(DOCS.pc, 12, "통화 중 음성을 실시간으로 텍스트로 변환하여 표시합니다."),
     ],
   },
   {
     id: "d_crm",
-    title: "통화 이력이 붙는 CRM",
-    plain: "고객 카드를 열면 지난 통화와 메모가 한 화면에 보입니다.",
-    conventional: "통화 후 엑셀이나 수첩에 상담 내용을 따로 옮겨 적습니다.",
-    ours: "통화 기록이 고객 카드에 자동으로 연결되어 담당자가 바뀌어도 이력이 이어집니다.",
+    title: "통화기록이 고객 이력으로 이어지는 CRM",
+    plain: "고객 한 명을 열면 상담·통화·문자·주문 이력이 한 화면에 있습니다.",
+    conventional: "통화 내용을 엑셀이나 수첩에 따로 옮겨 적고, 담당자가 바뀌면 이전 대화를 다시 물어봐야 합니다.",
+    ours: "고객 상세 화면의 이력 탭에서 통화를 눌러 녹취 재생과 STT 확인까지 하고, 통화에서 바로 상담을 등록합니다.",
     evidence: [
-      { doc: DEMO_DOCS.proposal, page: 8, quote: "고객 정보와 통화 이력 통합 관리(CRM)" },
-      { doc: DEMO_DOCS.manual, page: 21, quote: "고객 상세 화면의 통화 타임라인" },
+      ev(DOCS.crm, 29, "통화: 해당 고객의 통화 이력. 클릭 시 녹취 재생/STT 확인 가능."),
+      ev(DOCS.crm, 27, "전화 수신 시 자동으로 열리거나, 고객 목록에서 클릭하여 접근합니다."),
+      ev(DOCS.crm, 26, "담당자 변경: 선택한 고객의 담당자를 일괄 변경합니다."),
+    ],
+  },
+  {
+    id: "d_stats",
+    title: "직원별 통화 통계와 미결 상담 관리",
+    plain: "누가 얼마나 통화했고 어떤 상담이 남았는지 숫자로 봅니다.",
+    conventional: "직원이 쓴 일일 보고에 의존해 통화량과 상담 진행 상황을 파악합니다.",
+    ours: "담당자별 통화량·응답률·평균 통화시간을 비교하고, 상담을 대기·진행중·완료 상태로 나눠 미결 건을 관리합니다.",
+    evidence: [
+      ev(DOCS.crm, 33, "담당자별 통계: 담당자별 통화량, 응답률 비교"),
+      ev(DOCS.crm, 34, "상태별 비율: 대기/진행중/완료 비율 차트"),
+      ev(DOCS.admin, 14, "시간대별 통화 현황 그래프와 상담원별 통계표를 제공하며, PDF/엑셀로 다운로드할 수 있습니다."),
     ],
   },
   {
     id: "d_report",
-    title: "AI가 써 주는 통화 리포트",
-    plain: "녹음을 다시 듣지 않아도 AI가 핵심과 다음 할 일을 정리해 줍니다.",
-    conventional: "관리자가 녹음을 하나씩 들으며 상담 품질과 진행 상황을 확인합니다.",
-    ours: "AI가 통화 내용을 요약하고 주요 키워드와 후속 조치를 리포트로 만들어 줍니다.",
+    title: "AI 종합 리포트와 현황 대시보드",
+    plain: "보고서를 따로 만들지 않아도 AI가 현황과 개선점을 정리합니다.",
+    conventional: "관리자가 통화 기록과 실적을 직접 취합해 보고서를 만듭니다.",
+    ours: "AI가 통화·상담·매출 현황과 담당자별 실적을 요약하고 이슈와 개선 포인트를 분석하며, 기간별 종합 리포트를 PDF로 내려받습니다.",
     evidence: [
-      { doc: DEMO_DOCS.proposal, page: 11, quote: "AI 리포트: 통화 요약·키워드·후속 조치 제안" },
-      { doc: DEMO_DOCS.manual, page: 30, quote: "AI 리포트 조회 및 내보내기" },
+      ev(DOCS.crm, 35, "AI 기반 업무 분석 리포트를 제공합니다. 일일 리포트와 종합 리포트를 확인할 수 있습니다."),
+      ev(DOCS.crm, 36, "주요 이슈 및 트렌드 분석 · 개선 포인트 제안 · 전일/전주 대비 변화 분석"),
+      ev(DOCS.admin, 4, "당일 Call 현황(전체/성공/실패), 수신·발신 응답률, 시간대별 통화 현황과 콜타임 현황을 한눈에 확인하는 대시보드입니다."),
+    ],
+  },
+  {
+    id: "d_security",
+    title: "녹취 열람 사유와 사용 이력까지 남는 보안",
+    plain: "누가 언제 어떤 녹취를 들었는지 기록이 남습니다.",
+    conventional: "녹음 파일이 개인 휴대폰이나 공유 폴더에 있어 누가 열어 봤는지 알 수 없습니다.",
+    ours: "녹취를 재생·다운로드하려면 사유를 입력해야 하고, 로그인과 녹취 재생 이력이 로그로 남으며 사용자별 권한을 관리합니다.",
+    evidence: [
+      ev(DOCS.admin, 8, "녹취 파일을 재생·다운로드하려면 최소 5자 이상의 사유를 입력해야 확인이 가능합니다. (보안 절차)"),
+      ev(DOCS.admin, 20, "로그인/로그아웃, 녹취 재생 등 시스템 사용 이력을 날짜별로 조회합니다."),
+      ev(DOCS.guide, 1, "AES256·SHA256 암호화와 사용자별 접근권한 등 기업 통화정보를 안전하게 관리할 수 있는 보안 기능"),
     ],
   },
 ];
 
-const DEMO_SCREENS: { id: string; name: string; description: string; svg: string }[] = [
-  { id: "demo_shot_calls", name: "통화 목록 화면(샘플).svg", description: "고객별로 정리된 통화 녹음 목록 화면", svg: screenSvg("list") },
-  { id: "demo_shot_crm", name: "고객 카드 화면(샘플).svg", description: "고객 정보와 통화 타임라인이 함께 보이는 CRM 고객 카드 화면", svg: screenSvg("crm") },
-  { id: "demo_shot_report", name: "AI 리포트 화면(샘플).svg", description: "통화 요약과 키워드, 후속 조치가 정리된 AI 리포트 화면", svg: screenSvg("report") },
+/** Screenshots taken from the manuals; files live in public/product-shots. */
+export const SEED_SHOTS: { id: string; file: string; name: string; description: string }[] = [
+  { id: "shot_app", file: "app-settings.jpg", name: "모바일 앱 설정 화면 (관리자 매뉴얼 p.24)", description: "휴대폰 앱 설정 화면. 녹음 자동전송과 문자 자동전송이 켜져 있다" },
+  { id: "shot_calls", file: "call-list.jpg", name: "통화 녹음 목록 (관리자 매뉴얼 p.6)", description: "통화일, 통화시간, 수신·발신, 기기 유형이 정리된 통화 녹음 목록 화면" },
+  { id: "shot_summary", file: "call-summary.jpg", name: "통화 녹음 상세보기 (관리자 매뉴얼 p.7)", description: "통화 한 건의 키워드, AI 요약 내용, 화자별 대화 스크립트가 보이는 상세 화면" },
+  { id: "shot_customer", file: "crm-customer.jpg", name: "CRM 고객 상세 (CRM 매뉴얼 p.28, 개인정보 가림)", description: "고객 정보와 상담·통화·문자·주문 이력 탭이 함께 보이는 CRM 고객 상세 화면" },
+  { id: "shot_stats", file: "call-stats.jpg", name: "CRM 통화 통계 (CRM 매뉴얼 p.33)", description: "총 통화, 응답률, 통화 추이 그래프와 담당자별 통화 순위가 보이는 통계 화면" },
+  { id: "shot_dashboard", file: "dashboard.jpg", name: "현황 대시보드 (관리자 매뉴얼 p.4)", description: "당일 통화 현황, 수신·발신 응답률, 시간대별 통화 현황 대시보드" },
+  { id: "shot_keywords", file: "keyword-stats.jpg", name: "키워드 통계 (관리자 매뉴얼 p.17)", description: "통화 녹취에서 추출한 주요 키워드를 빈도별 트리맵으로 보여 주는 화면" },
+  { id: "shot_pcstt", file: "pc-stt.jpg", name: "PC폰 실시간 STT (PC폰 매뉴얼 p.12)", description: "PC폰에서 통화 중 고객과 상담원 발화가 실시간으로 글자로 표시되는 화면" },
 ];
 
-/** Raw SVG of a sample screen; usable in the browser as well as on the server. */
-export function demoScreenSvg(id: string): string | null {
-  return DEMO_SCREENS.find((x) => x.id === id)?.svg ?? null;
-}
-
-export function demoAsset(id: string): { mime: string; data: string } | null {
-  const svg = demoScreenSvg(id);
-  return svg ? { mime: "image/svg+xml", data: Buffer.from(svg).toString("base64") } : null;
-}
+export const seedShotFile = (id: string): string | null => SEED_SHOTS.find((s) => s.id === id)?.file ?? null;
 
 export function seedWorkspace(): Workspace {
-  const at = "2026-11-02T00:00:00.000Z";
-  const docs: Material[] = Object.entries(DEMO_DOCS).map(([k, name]) => ({
-    id: `demo_doc_${k}`, kind: "doc", name, mime: "application/pdf", size: 0, uploadedAt: at, demo: true,
-  }));
-  const shots: Material[] = DEMO_SCREENS.map((s) => ({
-    id: s.id, kind: "screenshot", name: s.name, mime: "image/svg+xml", size: s.svg.length,
-    uploadedAt: at, description: s.description, demo: true,
+  const at = "2026-11-20T00:00:00.000Z";
+  const docs: Material[] = Object.entries(DOCS)
+    .filter(([k]) => k !== "guide")
+    .map(([k, name]) => ({
+      id: `seed_doc_${k}`, kind: "doc", name, mime: name.endsWith(".pdf") ? "application/pdf" : "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      size: 0, uploadedAt: at, demo: true,
+    }));
+  const shots: Material[] = SEED_SHOTS.map((s) => ({
+    id: s.id, kind: "screenshot", name: s.name, mime: "image/jpeg", size: 0, uploadedAt: at, description: s.description, demo: true,
   }));
   return {
     product: {
       name: "비즈레코딩",
       company: "티링크",
-      summary: "통화녹음·CRM·AI 리포트를 하나로 묶은 B2B 업무 통화 솔루션",
+      summary: "휴대폰·인터넷전화·PC폰 통화를 자동 녹취하고 STT, AI 통화요약, CRM, 종합 리포트로 영업 활동을 정리하는 기업용 영업관리 솔루션",
     },
     materials: [...docs, ...shots],
     guideline: seedGuideline,
@@ -100,54 +169,4 @@ export function seedWorkspace(): Workspace {
     analyzedAt: at,
     analysisMode: "demo",
   };
-}
-
-/**
- * Wireframe-style placeholder screens. Deliberately text-free: the card renderer
- * rasterizes embedded SVGs without access to fonts, so glyphs would vanish.
- */
-function screenSvg(kind: "list" | "crm" | "report"): string {
-  const ink = "#1F4D3A", line = "#D9D2C3", soft = "#EFE9DC", amber = "#E8A33D";
-  const bar = (x: number, y: number, w: number, h = 14, fill = line, r = 7) =>
-    `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="${fill}"/>`;
-  let body = "";
-  if (kind === "list") {
-    for (let i = 0; i < 6; i++) {
-      const y = 150 + i * 78;
-      body += `<rect x="250" y="${y}" width="900" height="62" rx="12" fill="#fff" stroke="${line}"/>`
-        + `<circle cx="290" cy="${y + 31}" r="16" fill="${i % 3 === 0 ? amber : soft}"/>`
-        + bar(325, y + 16, 150 + (i % 3) * 30, 12, ink) + bar(325, y + 36, 240, 10)
-        + bar(700, y + 25, 180, 12, soft) + `<rect x="1040" y="${y + 17}" width="84" height="28" rx="14" fill="${ink}"/>`;
-    }
-  } else if (kind === "crm") {
-    body += `<rect x="250" y="150" width="330" height="460" rx="16" fill="#fff" stroke="${line}"/>`
-      + `<circle cx="415" cy="235" r="48" fill="${soft}"/>` + bar(340, 305, 150, 16, ink) + bar(310, 335, 210, 10)
-      + bar(280, 400, 270, 10) + bar(280, 425, 230, 10) + bar(280, 450, 250, 10)
-      + `<rect x="280" y="530" width="270" height="44" rx="22" fill="${amber}"/>`
-      + `<rect x="610" y="150" width="540" height="460" rx="16" fill="#fff" stroke="${line}"/>`
-      + `<line x1="655" y1="200" x2="655" y2="570" stroke="${line}" stroke-width="3"/>`;
-    for (let i = 0; i < 4; i++) {
-      const y = 200 + i * 98;
-      body += `<circle cx="655" cy="${y + 12}" r="10" fill="${i === 0 ? amber : ink}"/>`
-        + bar(690, y, 180, 14, ink) + bar(690, y + 26, 400, 10) + bar(690, y + 46, 320, 10);
-    }
-  } else {
-    body += `<rect x="250" y="150" width="900" height="150" rx="16" fill="#fff" stroke="${line}"/>`
-      + bar(280, 180, 200, 16, ink) + bar(280, 215, 820, 10) + bar(280, 238, 760, 10) + bar(280, 261, 600, 10)
-      + `<rect x="250" y="320" width="440" height="290" rx="16" fill="#fff" stroke="${line}"/>` + bar(280, 348, 140, 14, ink);
-    [120, 190, 90, 160, 210, 130].forEach((h, i) => {
-      body += `<rect x="${290 + i * 62}" y="${580 - h}" width="38" height="${h}" rx="8" fill="${i === 4 ? amber : ink}"/>`;
-    });
-    body += `<rect x="710" y="320" width="440" height="290" rx="16" fill="#fff" stroke="${line}"/>` + bar(740, 348, 140, 14, ink);
-    for (let i = 0; i < 4; i++) {
-      body += `<rect x="740" y="${392 + i * 50}" width="22" height="22" rx="6" fill="${i < 2 ? ink : soft}"/>` + bar(778, 398 + i * 50, 300 - i * 30, 10);
-    }
-  }
-  let nav = "";
-  for (let i = 0; i < 6; i++) nav += bar(40, 150 + i * 48, 130, 12, i === (kind === "list" ? 0 : kind === "crm" ? 1 : 2) ? amber : "#3E6B58");
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660">`
-    + `<rect width="1200" height="660" fill="#F6F1E7"/><rect width="210" height="660" fill="${ink}"/>`
-    + `<rect x="40" y="48" width="36" height="36" rx="10" fill="${amber}"/>` + bar(88, 58, 82, 14, "#F6F1E7") + nav
-    + `<rect x="210" width="990" height="100" fill="#fff"/>` + bar(250, 42, 220, 18, ink) + `<rect x="900" y="32" width="250" height="38" rx="19" fill="${soft}"/>`
-    + body + `</svg>`;
 }

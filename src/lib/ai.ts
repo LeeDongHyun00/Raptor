@@ -120,7 +120,6 @@ export async function describeScreenshots(ws: Workspace, shots: Material[]): Pro
   const content: Content = [];
   for (const s of todo) {
     const asset = await getAsset(s.id);
-    // Claude vision accepts raster images only; SVG placeholders are skipped.
     if (!asset || !/^image\/(png|jpeg|webp|gif)$/.test(asset.mime)) continue;
     content.push({ type: "text", text: `화면 캡처 id: ${s.id} (파일명: ${s.name})` });
     content.push({ type: "image", source: { type: "base64", media_type: asset.mime as "image/png", data: asset.data } });

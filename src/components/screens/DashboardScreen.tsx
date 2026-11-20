@@ -54,10 +54,10 @@ export function DashboardScreen() {
           </dl>
         </div>
         <div className="flex flex-wrap gap-2 border-t border-cream/15 bg-ink/25 px-6 py-3 text-xs sm:px-9">
-          <Mode on={modes.ai === "live"} onText="AI: Claude 실제 생성" offText="AI: 데모 모드(샘플 응답)" />
+          <Mode on={modes.ai === "live"} onText="AI: Claude 실제 생성" offText="AI: 데모 모드(문서 기반 준비 원고)" />
           <Mode on={modes.trend === "live"} onText="트렌드: 네이버 데이터랩" offText="트렌드: 샘플 데이터" />
           <Mode on={modes.storage === "supabase"} onText="저장소: Supabase" offText={{ supabase: "", file: "저장소: 로컬 파일", ephemeral: "저장소: 임시(재시작 시 초기화)", browser: "저장소: 이 브라우저(GitHub Pages 데모)" }[modes.storage]} />
-          {usingSample && <Mode on={false} onText="" offText="자료: 샘플 포함" />}
+          {usingSample && <Mode on onText="자료: 회사 문서 4종 사전 분석" offText="" />}
         </div>
       </section>
 

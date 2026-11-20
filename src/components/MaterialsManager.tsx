@@ -64,7 +64,7 @@ export function MaterialsManager({ materials, guideline, onChange }: { materials
                       <div className="p-3">
                         <div className="flex items-start justify-between gap-2">
                           <p className="break-all text-xs font-semibold leading-snug">{m.name}</p>
-                          {m.demo ? <Badge tone="warn">샘플</Badge> : <RemoveButton onClick={() => remove(m.id)} name={m.name} />}
+                          {m.demo ? <Badge tone="good">기본 탑재</Badge> : <RemoveButton onClick={() => remove(m.id)} name={m.name} />}
                         </div>
                         <p className="mt-1.5 text-xs leading-relaxed text-mute">{m.description ?? "다음 생성 때 AI가 화면 내용을 읽습니다."}</p>
                       </div>
@@ -77,9 +77,9 @@ export function MaterialsManager({ materials, guideline, onChange }: { materials
                     <li key={m.id} className="flex items-center justify-between gap-3 py-2.5">
                       <div className="min-w-0">
                         <p className="break-all text-sm font-semibold">{m.name}</p>
-                        <p className="text-xs text-mute">{m.demo ? "실제 파일 없이 샘플 분석 결과만 연결되어 있습니다" : size(m.size)}</p>
+                        <p className="text-xs text-mute">{m.demo ? "미리 분석해 둔 회사 문서입니다. 원본 파일은 저장소에 포함하지 않습니다" : size(m.size)}</p>
                       </div>
-                      {m.demo ? <Badge tone="warn">샘플</Badge> : <RemoveButton onClick={() => remove(m.id)} name={m.name} />}
+                      {m.demo ? <Badge tone="good">기본 탑재</Badge> : <RemoveButton onClick={() => remove(m.id)} name={m.name} />}
                     </li>
                   ))}
                 </ul>
@@ -150,7 +150,7 @@ function GuidelineEditor({ guideline, uploadButton, onSaved }: { guideline: Guid
   return (
     <Panel title="가이드라인" action={uploadButton}>
       <p className="-mt-2 mb-5 text-xs leading-relaxed text-mute">
-        현재 기준: {guideline.source}. 엑셀은 첫 열에 구분(키워드·미션·구성·글자수), 둘째 열에 내용, 키워드 행의 셋째 열에 최소 횟수를 적으면 읽어 옵니다.
+        현재 기준: {guideline.source}. 티링크 가이드라인 양식(‘필수’ 키워드, ‘강조내용’, ‘추천 본문 구성’ 행)을 그대로 올리면 읽어 옵니다.
       </p>
       <div className="grid gap-5 lg:grid-cols-2">
         <label className="block">
@@ -161,7 +161,7 @@ function GuidelineEditor({ guideline, uploadButton, onSaved }: { guideline: Guid
         <label className="block">
           <span className="text-sm font-bold">미션</span>
           <span className="ml-2 text-xs text-mute">한 줄에 하나 · AI가 충족 여부를 판정</span>
-          <textarea className={`${input} mt-2`} rows={5} value={missions} onChange={(e) => { setMissions(e.target.value); setState("idle"); }} />
+          <textarea className={`${input} mt-2`} rows={12} value={missions} onChange={(e) => { setMissions(e.target.value); setState("idle"); }} />
         </label>
         <label className="block">
           <span className="text-sm font-bold">글 구성 순서</span>
@@ -171,7 +171,7 @@ function GuidelineEditor({ guideline, uploadButton, onSaved }: { guideline: Guid
         <div>
           <label className="block">
             <span className="text-sm font-bold">최소 글자 수</span>
-            <span className="ml-2 text-xs text-mute">본문, 공백 제외</span>
+            <span className="ml-2 text-xs text-mute">본문, 공백 제외 · 0이면 기준 없음</span>
             <input className={`${input} mt-2 max-w-40 tabular-nums`} inputMode="numeric" value={minChars} onChange={(e) => { setMinChars(e.target.value.replace(/\D/g, "")); setState("idle"); }} />
           </label>
           <p className="mt-4 rounded-xl bg-cream p-3 text-xs leading-relaxed text-mute">

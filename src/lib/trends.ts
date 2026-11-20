@@ -8,16 +8,16 @@ export const trendMode: "live" | "sample" = ID && SECRET ? "live" : "sample";
 
 /** Candidate topics watched every cycle; each is a DataLab keyword group. */
 export const TREND_KEYWORDS: { groupName: string; keywords: string[] }[] = [
-  { groupName: "AI 업무자동화", keywords: ["AI 업무자동화", "업무 자동화", "AI 자동화"] },
-  { groupName: "영업 생산성", keywords: ["영업 생산성", "영업 관리", "세일즈 자동화"] },
-  { groupName: "고객 응대 품질", keywords: ["고객 응대", "상담 품질", "CS 관리"] },
-  { groupName: "통화녹음", keywords: ["통화녹음", "통화 녹음", "업무용 통화녹음"] },
-  { groupName: "CRM", keywords: ["CRM", "고객관리 프로그램", "고객 관리"] },
-  { groupName: "AI 요약", keywords: ["AI 요약", "통화 요약", "회의록 AI"] },
-  { groupName: "콜센터 AI", keywords: ["콜센터 AI", "AI 상담", "AICC"] },
-  { groupName: "재택근무", keywords: ["재택근무", "하이브리드 근무", "원격근무"] },
-  { groupName: "개인정보 보호", keywords: ["개인정보 보호", "통화녹음 동의", "개인정보보호법"] },
-  { groupName: "리드 관리", keywords: ["리드 관리", "잠재고객 관리", "영업 기회 관리"] },
+  { groupName: "업무자동화", keywords: ["업무자동화", "업무 자동화", "AI 업무자동화"] },
+  { groupName: "AI 통화요약", keywords: ["통화요약", "통화 요약", "음성요약"] },
+  { groupName: "콜센터 프로그램", keywords: ["콜센터 프로그램", "콜센터 솔루션", "AICC"] },
+  { groupName: "고객관리 프로그램", keywords: ["고객관리 프로그램", "CRM 프로그램", "고객관리"] },
+  { groupName: "휴대폰 통화녹음", keywords: ["휴대폰 통화녹음", "휴대폰 녹음", "업무용 통화녹음"] },
+  { groupName: "인터넷전화 녹취", keywords: ["인터넷전화 녹취", "인터넷전화", "통화 녹취"] },
+  { groupName: "STT 문자변환", keywords: ["STT", "음성 문자변환", "음성인식"] },
+  { groupName: "회의록 작성", keywords: ["회의록작성", "회의록 AI", "회의록 자동"] },
+  { groupName: "영업사원 관리", keywords: ["영업사원 통화관리", "영업 관리", "영업사원 관리"] },
+  { groupName: "경영 대시보드", keywords: ["경영대시보드", "경영 대시보드", "영업 리포트"] },
 ];
 
 const headers = () => ({

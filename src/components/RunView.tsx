@@ -58,7 +58,7 @@ export function RunView({ initial, disclosure, adHashtag, emailFooter, different
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={run.status} />
               {run.plan && <Badge>트렌드 · {run.plan.trendKeyword}</Badge>}
-              <Badge tone={run.aiMode === "live" ? "good" : "warn"}>{run.aiMode === "live" ? "Claude 생성" : "데모 모드 샘플"}</Badge>
+              <Badge tone={run.aiMode === "live" ? "good" : "warn"}>{run.aiMode === "live" ? "Claude 생성" : "데모 모드 준비 원고"}</Badge>
             </div>
             <h1 className="mt-2 text-2xl font-extrabold leading-snug tracking-tight sm:text-3xl">
               {run.plan?.topic ?? (run.status === "failed" ? "이번 회차를 만들지 못했습니다" : "이번 회차를 만들고 있습니다")}
@@ -224,7 +224,7 @@ function Checklist({ review }: { review: Review }) {
         {review.keywordChecks.map((k) => (
           <Check key={k.keyword} pass={k.pass} label={k.keyword} detail={`${k.count}회 사용 · 기준 ${k.minCount}회 이상`} />
         ))}
-        <Check pass={review.charCount >= review.minChars} label="본문 분량" detail={`공백 제외 ${review.charCount.toLocaleString()}자 · 기준 ${review.minChars.toLocaleString()}자 이상`} />
+        <Check pass={review.charCount >= review.minChars} label="본문 분량" detail={`공백 제외 ${review.charCount.toLocaleString()}자 · ${review.minChars ? `기준 ${review.minChars.toLocaleString()}자 이상` : "가이드라인에 기준 없음"}`} />
         <Check pass={review.cardCountOk} label="카드뉴스 6~8장" />
         <Check pass={review.adDisclosure} label="‘광고’ 표기" detail="공정위 추천·보증 지침에 따라 자동 삽입" />
       </ul>
@@ -316,7 +316,7 @@ function BlogTab({ run, disclosure }: { run: Run; disclosure: string }) {
             {s.screenshotId && (
               <figure className="mt-5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={assetUrl(s.screenshotId)} alt={s.caption ?? ""} className="w-full rounded-xl border border-line" />
+                <img src={assetUrl(s.screenshotId)} alt={s.caption ?? ""} className="mx-auto max-h-[520px] w-auto max-w-full rounded-xl border border-line" />
                 {s.caption && <figcaption className="mt-2 text-center text-xs text-mute">▲ {s.caption}</figcaption>}
               </figure>
             )}

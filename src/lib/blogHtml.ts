@@ -17,7 +17,7 @@ export function blogBodyHtml(disclosure: string, blog: Blog, imageSrc: (id: stri
     const src = s.screenshotId ? imageSrc(s.screenshotId) : null;
     if (src) {
       parts.push(
-        `<figure style="margin:24px 0;text-align:center;"><img src="${src}" alt="${esc(s.caption ?? "")}" style="max-width:100%;border:1px solid #e5e5e5;"/>` +
+        `<figure style="margin:24px 0;text-align:center;"><img src="${src}" alt="${esc(s.caption ?? "")}" style="max-width:100%;max-height:640px;border:1px solid #e5e5e5;"/>` +
           (s.caption ? `<figcaption style="color:#777;font-size:14px;margin-top:8px;">▲ ${esc(s.caption)}</figcaption>` : "") + `</figure>`,
       );
     }

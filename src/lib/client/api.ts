@@ -1,6 +1,6 @@
 import type { Blog, Guideline, MaterialKind, Run, Workspace } from "../types";
 import { demoBlog, demoCards, demoChannels, demoPlan, demoReviewMissions, demoRevise, demoTopicIndex, sampleNews, sampleTrends } from "../demo";
-import { demoScreenSvg, seedWorkspace } from "../seed";
+import { seedShotFile, seedWorkspace } from "../seed";
 import { newRun, runPipeline } from "../pipelineCore";
 import { blogDocumentHtml } from "../blogHtml";
 
@@ -23,6 +23,10 @@ const STATIC_NOTICE = "GitHub Pages 데모에서는 사용할 수 없는 기능�
 
 /* ---------- browser-only store ---------- */
 
+// Versioned so state saved by an older build (different sample data) is ignored.
+const RUNS_KEY = "trihorn.v2.runs";
+const WS_KEY = "trihorn.v2.ws";
+
 const read = <T,>(key: string, fallback: T): T => {
   try {
     const raw = window.localStorage.getItem(key);
@@ -40,9 +44,9 @@ const write = (key: string, value: unknown) => {
 };
 // Mirror of localStorage so the demo still works when storage is unavailable.
 let memRuns: Run[] | null = null;
-const localRuns = (): Run[] => (memRuns ??= read<Run[]>("trihorn.runs", []));
-const saveLocalRuns = (runs: Run[]) => { memRuns = runs; write("trihorn.runs", runs); };
-const localWs = (): Workspace => read<Workspace>("trihorn.ws", seedWorkspace());
+const localRuns = (): Run[] => (memRuns ??= read<Run[]>(RUNS_KEY, []));
+const saveLocalRuns = (runs: Run[]) => { memRuns = runs; write(RUNS_KEY, runs); };
+const localWs = (): Workspace => read<Workspace>(WS_KEY, seedWorkspace());
 
 const localUpdateRun = async (id: string, mutate: (r: Run) => void): Promise<Run> => {
   const runs = localRuns().map((r) => ({ ...r }));
@@ -101,7 +105,7 @@ export async function startRun(): Promise<string> {
   void runPipeline(run.id, {
     stepDelayMs: 700,
     getWorkspace: async () => localWs(),
-    saveWorkspace: async (ws) => write("trihorn.ws", ws),
+    saveWorkspace: async (ws) => write(WS_KEY, ws),
     getRuns: async () => localRuns(),
     updateRun: localUpdateRun,
     collectTrends: async () => ({ trends: sampleTrends, news: sampleNews, mode: "sample" }),
@@ -149,7 +153,7 @@ export async function saveGuideline(g: Omit<Guideline, "source">): Promise<void>
   if (isStaticDemo) {
     const ws = localWs();
     ws.guideline = { ...g, source: ws.guideline.source.includes("직접 수정") ? ws.guideline.source : `${ws.guideline.source} · 직접 수정` };
-    return write("trihorn.ws", ws);
+    return write(WS_KEY, ws);
   }
   await json("/api/guideline", jsonBody("PUT", g));
 }
@@ -162,9 +166,9 @@ export async function analyze(): Promise<void> {
 /* ---------- URLs for images and downloads ---------- */
 
 export function assetUrl(id: string): string {
-  const svg = demoScreenSvg(id);
-  // Sample screens are generated in code, so they need no server round-trip.
-  return svg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}` : `${BASE}/api/assets/${id}`;
+  // Preloaded screenshots are static files, so they need no server round-trip.
+  const file = seedShotFile(id);
+  return file ? `${BASE}/product-shots/${file}` : `${BASE}/api/assets/${id}`;
 }
 
 export function cardUrl(run: Run, index: number, download = false): string {
@@ -183,8 +187,19 @@ export function blogExportUrl(run: Run): string | null {
 }
 
 /** Client-side HTML export, used where there is no server route to build the file. */
-export function downloadBlogHtml(run: Run, blog: Blog, disclosure: string) {
-  downloadHtml(`blog-${run.id}.html`, blogDocumentHtml(disclosure, blog, (id) => (demoScreenSvg(id) ? assetUrl(id) : null)));
+export async function downloadBlogHtml(run: Run, blog: Blog, disclosure: string) {
+  // Inline the images so the exported file works on its own.
+  const uris: Record<string, string> = {};
+  for (const id of new Set(blog.sections.map((s) => s.screenshotId).filter((x): x is string => !!x && !!seedShotFile(x)))) {
+    const blob = await (await fetch(assetUrl(id))).blob();
+    uris[id] = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  }
+  downloadHtml(`blog-${run.id}.html`, blogDocumentHtml(disclosure, blog, (id) => uris[id] ?? null));
 }
 
 export function downloadHtml(filename: string, html: string) {

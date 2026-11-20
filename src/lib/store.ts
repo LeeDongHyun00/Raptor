@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import type { Run, Workspace } from "./types";
-import { demoAsset, seedWorkspace } from "./seed";
+import { seedShotFile, seedWorkspace } from "./seed";
 
 /**
  * Tiny key/value document store with two backends:
@@ -123,7 +123,13 @@ export interface Asset {
 }
 
 export async function getAsset(id: string): Promise<Asset | null> {
-  return demoAsset(id) ?? (await kvGet<Asset>(`asset:${id}`));
+  // Preloaded screenshots ship as static files instead of living in the store.
+  const file = seedShotFile(id);
+  if (file) {
+    const data = await fs.readFile(path.join(process.cwd(), "public/product-shots", file));
+    return { mime: "image/jpeg", data: data.toString("base64") };
+  }
+  return kvGet<Asset>(`asset:${id}`);
 }
 
 export async function saveAsset(id: string, asset: Asset): Promise<void> {
