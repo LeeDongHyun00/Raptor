@@ -1,0 +1,153 @@
+export type MaterialKind = "doc" | "screenshot" | "guideline";
+
+export interface Material {
+  id: string;
+  kind: MaterialKind;
+  name: string;
+  mime: string;
+  size: number;
+  uploadedAt: string;
+  /** Text extracted at upload time (PPTX slides, XLSX rows). PDFs go to Claude as-is. */
+  text?: string;
+  /** What the screenshot shows; filled by vision analysis (or seeded in demo). */
+  description?: string;
+  demo?: boolean;
+}
+
+export interface Guideline {
+  source: string;
+  requiredKeywords: { keyword: string; minCount: number }[];
+  missions: string[];
+  structure: string[];
+  minChars: number;
+}
+
+export interface Evidence {
+  doc: string;
+  page: number;
+  quote: string;
+}
+
+export interface Differentiator {
+  id: string;
+  title: string;
+  /** Customer-friendly one-liner. */
+  plain: string;
+  conventional: string;
+  ours: string;
+  evidence: Evidence[];
+}
+
+export interface Workspace {
+  product: { name: string; company: string; summary: string };
+  materials: Material[];
+  guideline: Guideline;
+  differentiators: Differentiator[];
+  analyzedAt?: string;
+  analysisMode?: "live" | "demo";
+}
+
+export interface TrendItem {
+  keyword: string;
+  /** Recent 2 weeks vs. the 2 weeks before, in percent. */
+  change: number;
+  series: number[];
+}
+
+export interface NewsItem {
+  keyword: string;
+  title: string;
+  link: string;
+  pubDate: string;
+}
+
+export interface Plan {
+  topic: string;
+  trendKeyword: string;
+  angle: string;
+  reason: string;
+  differentiatorIds: string[];
+}
+
+export interface BlogSection {
+  heading: string;
+  paragraphs: string[];
+  screenshotId: string | null;
+  caption: string | null;
+}
+
+export interface Blog {
+  title: string;
+  sections: BlogSection[];
+  tags: string[];
+}
+
+export interface CardSlide {
+  kind: "cover" | "point" | "cta";
+  eyebrow: string;
+  title: string;
+  body: string;
+  screenshotId: string | null;
+}
+
+export interface CardNews {
+  slides: CardSlide[];
+  caption: string;
+  hashtags: string[];
+}
+
+export interface KeywordCheck {
+  keyword: string;
+  minCount: number;
+  count: number;
+  pass: boolean;
+}
+
+export interface MissionCheck {
+  mission: string;
+  pass: boolean;
+  note: string;
+  /** Blog section indexes that need rewriting when the mission fails. */
+  sectionIndexes: number[];
+}
+
+export interface Review {
+  keywordChecks: KeywordCheck[];
+  missionChecks: MissionCheck[];
+  charCount: number;
+  minChars: number;
+  adDisclosure: boolean;
+  cardCountOk: boolean;
+  passed: number;
+  total: number;
+}
+
+export type RunStatus = "running" | "pending" | "approved" | "rejected" | "failed";
+
+export interface RunLog {
+  at: string;
+  step: string;
+  message: string;
+}
+
+export interface Run {
+  id: string;
+  createdAt: string;
+  trigger: "manual" | "cron";
+  status: RunStatus;
+  step: string;
+  logs: RunLog[];
+  aiMode: "live" | "demo";
+  trendMode: "live" | "sample";
+  trends: TrendItem[];
+  news: NewsItem[];
+  plan?: Plan;
+  blog?: Blog;
+  cards?: CardNews;
+  review?: Review;
+  /** Review result of the first draft, kept to show what the auto-fix changed. */
+  firstReview?: Review;
+  revisions: { round: number; sectionIndexes: number[]; reasons: string[] }[];
+  decidedAt?: string;
+  error?: string;
+}
